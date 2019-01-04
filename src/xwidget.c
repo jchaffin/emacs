@@ -640,7 +640,6 @@ xwidget_init_view (struct xwidget *xww,
   gtk_widget_show_all (xv->widgetwindow);
 #elif defined (NS_IMPL_COCOA)
   nsxwidget_init_view (xv, xww, s, x, y);
-  nsxwidget_resize_view(xv, xww->width, xww->height);
 #endif
 
   return xv;
@@ -799,6 +798,7 @@ xwidget_is_web_view (struct xwidget *xw)
       return Qnil;							\
     }
 DEFUN ("xwidget-webkit-uri",
+
        Fxwidget_webkit_uri, Sxwidget_webkit_uri,
        1, 1, 0,
        doc: /* Get the current URL of XWIDGET webkit.  */)
