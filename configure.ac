@@ -2565,6 +2565,10 @@ if test "${HAVE_X11}" = "yes" || test "${HAVE_NS}" = "yes" || test "${HAVE_W32}"
 		      MagickMergeImageLayers MagickAutoOrientImage])
       CFLAGS=$OLD_CFLAGS
       LIBS=$OLD_LIBS
+      # Windows loads libmagickwand dynamically
+      if test "${opsys}" = "mingw32"; then
+        IMAGEMAGICK_LIBS=
+      fi
       # Check that ImageMagick links.  It does not link on Fedora 25
       # with './configure CC=clang', as pkg-config outputs flags like
       # -lomp that work for GCC but not Clang.

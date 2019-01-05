@@ -8304,8 +8304,8 @@ imagemagick_image_p (Lisp_Object object)
 #ifdef HAVE_IMAGEMAGICK7
 # include <MagickWand/MagickWand.h>
 # include <MagickCore/version.h>
-/* ImageMagick 7 compatibility definitions.  */
-# define PixelSetMagickColor PixelSetPixelColor
+/* ImageMagick 7 compatibility definitions.  API functions are
+   redefined later, after the w32 runtime linking support code.  */
 typedef PixelInfo MagickPixelPacket;
 #else
 # include <wand/MagickWand.h>
@@ -8318,6 +8318,255 @@ typedef PixelInfo MagickPixelPacket;
 extern WandExport void PixelGetMagickColor (const PixelWand *,
 					    MagickPixelPacket *);
 #endif
+
+#if defined HAVE_NTGUI && defined WINDOWSNT
+
+/* Imagemagick MagickWand library functions.  */
+
+DEF_DLL_FN (MagickWand *, CloneMagickWand, (const MagickWand *));
+DEF_DLL_FN (MagickWand *, DestroyMagickWand, (MagickWand *));
+DEF_DLL_FN (PixelIterator *, DestroyPixelIterator, (PixelIterator *));
+DEF_DLL_FN (PixelWand *, DestroyPixelWand, (PixelWand *));
+DEF_DLL_FN (MagickBooleanType, MagickCropImage,
+            (MagickWand *, const size_t, const size_t, const ssize_t,
+             const ssize_t));
+DEF_DLL_FN (MagickBooleanType, MagickExportImagePixels,
+            (MagickWand *, const ssize_t, const ssize_t, const size_t,
+             const size_t, const char *, const StorageType, void *));
+#ifndef HAVE_MAGICKMERGEIMAGELAYERS
+DEF_DLL_FN(MagickWand *, MagickFlattenImages, (MagickWand *));
+#endif
+DEF_DLL_FN (char *, MagickGetException, (const MagickWand *, ExceptionType *));
+DEF_DLL_FN (MagickWand *, MagickGetImage, (MagickWand *));
+DEF_DLL_FN (size_t, MagickGetImageDelay, (MagickWand *));
+DEF_DLL_FN (DisposeType, MagickGetImageDispose, (MagickWand *));
+DEF_DLL_FN (size_t, MagickGetImageHeight, (MagickWand *));
+DEF_DLL_FN (MagickBooleanType, MagickGetImagePage,
+             (MagickWand *, size_t *, size_t *, ssize_t *, ssize_t *));
+DEF_DLL_FN (char *, MagickGetImageSignature, (MagickWand *));
+DEF_DLL_FN (size_t, MagickGetImageWidth, (MagickWand *));
+DEF_DLL_FN (size_t, MagickGetNumberImages, (MagickWand *));
+#ifdef HAVE_MAGICKMERGEIMAGELAYERS
+DEF_DLL_FN (MagickWand *, MagickMergeImageLayers,
+            (MagickWand *, const LayerMethod));
+#endif
+DEF_DLL_FN (char **, MagickQueryFormats, (const char *, size_t *));
+DEF_DLL_FN (MagickBooleanType, MagickReadImage, (MagickWand *, const char *));
+DEF_DLL_FN (MagickBooleanType, MagickReadImageBlob,
+            (MagickWand *, const void *, const size_t));
+DEF_DLL_FN (void *, MagickRelinquishMemory, (void *));
+DEF_DLL_FN (MagickBooleanType, MagickRotateImage,
+            (MagickWand *, const PixelWand *, const double));
+DEF_DLL_FN (MagickBooleanType, MagickScaleImage,
+            (MagickWand *, const size_t, const size_t));
+DEF_DLL_FN (MagickBooleanType, MagickSetFilename, (MagickWand *, const char *));
+DEF_DLL_FN (MagickBooleanType, MagickSetImageBackgroundColor,
+            (MagickWand *,const PixelWand *));
+DEF_DLL_FN (MagickBooleanType, MagickSetIteratorIndex,
+            (MagickWand *, const ssize_t));
+DEF_DLL_FN (void, MagickWandGenesis, (void));
+DEF_DLL_FN (void, MagickWandTerminus, (void));
+DEF_DLL_FN (MagickWand *, NewMagickWand, (void));
+DEF_DLL_FN (PixelIterator *, NewPixelIterator, (MagickWand *));
+DEF_DLL_FN (PixelWand *, NewPixelWand, (void));
+DEF_DLL_FN (double, PixelGetAlpha, (const PixelWand *));
+DEF_DLL_FN (void, PixelGetMagickColor, (const PixelWand *, MagickPixelPacket *));
+DEF_DLL_FN (PixelWand **, PixelGetNextIteratorRow, (PixelIterator *, size_t *));
+DEF_DLL_FN (void, PixelSetBlue, (PixelWand *, const double));
+DEF_DLL_FN (void, PixelSetGreen, (PixelWand *, const double));
+DEF_DLL_FN (MagickBooleanType, PixelSetIteratorRow,
+            (PixelIterator *, const ssize_t));
+#ifdef HAVE_IMAGEMAGICK7
+DEF_DLL_FN (void, PixelSetPixelColor, (PixelWand *, const MagickPixelPacket *));
+#else
+DEF_DLL_FN (void, PixelSetMagickColor, (PixelWand *, const MagickPixelPacket *));
+#endif
+DEF_DLL_FN (void, PixelSetRed, (PixelWand *, const double));
+DEF_DLL_FN (MagickBooleanType, PixelSyncIterator, (PixelIterator *));
+
+DEF_DLL_FN (MagickBooleanType, MagickSetSize,
+            (MagickWand *, const size_t, const size_t));
+DEF_DLL_FN (MagickBooleanType, MagickSetDepth,
+            (MagickWand *, const size_t));
+#ifdef HAVE_MAGICKAUTOORIENTIMAGE
+DEF_DLL_FN (MagickBooleanType, MagickAutoOrientImage, (MagickWand *));
+#endif
+
+static bool
+init_imagemagick_functions (void)
+{
+  HMODULE library = NULL;
+
+  if (!(library = w32_delayed_load (Qimagemagick)))
+    {
+      return 0;
+    }
+
+  LOAD_DLL_FN (library, CloneMagickWand);
+  LOAD_DLL_FN (library, DestroyMagickWand);
+  LOAD_DLL_FN (library, DestroyPixelIterator);
+  LOAD_DLL_FN (library, DestroyPixelWand);
+  LOAD_DLL_FN (library, MagickCropImage);
+  LOAD_DLL_FN (library, MagickExportImagePixels);
+#ifndef HAVE_MAGICKMERGEIMAGELAYERS
+  LOAD_DLL_FN (library, MagickFlattenImages);
+#endif
+  LOAD_DLL_FN (library, MagickGetException);
+  LOAD_DLL_FN (library, MagickGetImage);
+  LOAD_DLL_FN (library, MagickGetImageDelay);
+  LOAD_DLL_FN (library, MagickGetImageDispose);
+  LOAD_DLL_FN (library, MagickGetImageHeight);
+  LOAD_DLL_FN (library, MagickGetImagePage);
+  LOAD_DLL_FN (library, MagickGetImageSignature);
+  LOAD_DLL_FN (library, MagickGetImageWidth);
+  LOAD_DLL_FN (library, MagickGetNumberImages);
+#ifdef HAVE_MAGICKMERGEIMAGELAYERS
+  LOAD_DLL_FN (library, MagickMergeImageLayers);
+#endif
+  LOAD_DLL_FN (library, MagickQueryFormats);
+  LOAD_DLL_FN (library, MagickReadImage);
+  LOAD_DLL_FN (library, MagickReadImageBlob);
+  LOAD_DLL_FN (library, MagickRelinquishMemory);
+  LOAD_DLL_FN (library, MagickRotateImage);
+  LOAD_DLL_FN (library, MagickScaleImage);
+  LOAD_DLL_FN (library, MagickSetFilename);
+  LOAD_DLL_FN (library, MagickSetImageBackgroundColor);
+  LOAD_DLL_FN (library, MagickSetIteratorIndex);
+  LOAD_DLL_FN (library, MagickWandGenesis);
+  LOAD_DLL_FN (library, MagickWandTerminus);
+  LOAD_DLL_FN (library, NewMagickWand);
+  LOAD_DLL_FN (library, NewPixelIterator);
+  LOAD_DLL_FN (library, NewPixelWand);
+  LOAD_DLL_FN (library, PixelGetAlpha);
+  LOAD_DLL_FN (library, PixelGetMagickColor);
+  LOAD_DLL_FN (library, PixelGetNextIteratorRow);
+  LOAD_DLL_FN (library, PixelSetBlue);
+  LOAD_DLL_FN (library, PixelSetGreen);
+  LOAD_DLL_FN (library, PixelSetIteratorRow);
+#ifdef HAVE_IMAGEMAGICK7
+  LOAD_DLL_FN (library, PixelSetPixelColor);
+#else
+  LOAD_DLL_FN (library, PixelSetMagickColor);
+#endif
+  LOAD_DLL_FN (library, PixelSetRed);
+  LOAD_DLL_FN (library, PixelSyncIterator);
+
+  LOAD_DLL_FN (library, MagickSetSize);
+  LOAD_DLL_FN (library, MagickSetDepth);
+#ifdef HAVE_MAGICKAUTOORIENTIMAGE
+  LOAD_DLL_FN (library, MagickAutoOrientImage);
+#endif
+
+  return 1;
+}
+
+#undef CloneMagickWand
+#undef DestroyMagickWand
+#undef DestroyPixelIterator
+#undef DestroyPixelWand
+#undef MagickCropImage
+#undef MagickExportImagePixels
+#undef MagickFlattenImages
+#undef MagickGetException
+#undef MagickGetImage
+#undef MagickGetImageDelay
+#undef MagickGetImageDispose
+#undef MagickGetImageHeight
+#undef MagickGetImagePage
+#undef MagickGetImageSignature
+#undef MagickGetImageWidth
+#undef MagickGetNumberImages
+#undef MagickMergeImageLayers
+#undef MagickQueryFormats
+#undef MagickReadImage
+#undef MagickReadImageBlob
+#undef MagickRelinquishMemory
+#undef MagickRotateImage
+#undef MagickScaleImage
+#undef MagickSetFilename
+#undef MagickSetImageBackgroundColor
+#undef MagickSetIteratorIndex
+#undef MagickWandGenesis
+#undef MagickWandTerminus
+#undef NewMagickWand
+#undef NewPixelIterator
+#undef NewPixelWand
+#undef PixelGetAlpha
+#undef PixelGetMagickColor
+#undef PixelGetNextIteratorRow
+#undef PixelSetBlue
+#undef PixelSetGreen
+#undef PixelSetIteratorRow
+#undef PixelSetMagickColor
+#undef PixelSetPixelColor
+#undef PixelSetRed
+#undef PixelSyncIterator
+
+#undef MagickSetSize
+#undef MagickSetDepth
+#undef MagickAutoOrientImage
+
+#define CloneMagickWand fn_CloneMagickWand
+#define DestroyMagickWand fn_DestroyMagickWand
+#define DestroyPixelIterator fn_DestroyPixelIterator
+#define DestroyPixelWand fn_DestroyPixelWand
+#define MagickCropImage fn_MagickCropImage
+#define MagickExportImagePixels fn_MagickExportImagePixels
+#ifndef HAVE_MAGICKMERGEIMAGELAYERS
+#define MagickFlattenImages fn_MagickFlattenImages
+#endif
+#define MagickGetException fn_MagickGetException
+#define MagickGetImage fn_MagickGetImage
+#define MagickGetImageDelay fn_MagickGetImageDelay
+#define MagickGetImageDispose fn_MagickGetImageDispose
+#define MagickGetImageHeight fn_MagickGetImageHeight
+#define MagickGetImagePage fn_MagickGetImagePage
+#define MagickGetImageSignature fn_MagickGetImageSignature
+#define MagickGetImageWidth fn_MagickGetImageWidth
+#define MagickGetNumberImages fn_MagickGetNumberImages
+#define MagickMergeImageLayers fn_MagickMergeImageLayers
+#define MagickQueryFormats fn_MagickQueryFormats
+#define MagickReadImage fn_MagickReadImage
+#define MagickReadImageBlob fn_MagickReadImageBlob
+#define MagickRelinquishMemory fn_MagickRelinquishMemory
+#define MagickRotateImage fn_MagickRotateImage
+#define MagickScaleImage fn_MagickScaleImage
+#define MagickSetFilename fn_MagickSetFilename
+#define MagickSetImageBackgroundColor fn_MagickSetImageBackgroundColor
+#define MagickSetIteratorIndex fn_MagickSetIteratorIndex
+#define MagickWandGenesis fn_MagickWandGenesis
+#define MagickWandTerminus fn_MagickWandTerminus
+#define NewMagickWand fn_NewMagickWand
+#define NewPixelIterator fn_NewPixelIterator
+#define NewPixelWand fn_NewPixelWand
+#define PixelGetAlpha fn_PixelGetAlpha
+#define PixelGetMagickColor fn_PixelGetMagickColor
+#define PixelGetNextIteratorRow fn_PixelGetNextIteratorRow
+#define PixelSetBlue fn_PixelSetBlue
+#define PixelSetGreen fn_PixelSetGreen
+#define PixelSetIteratorRow fn_PixelSetIteratorRow
+#ifdef HAVE_IMAGEMAGICK7
+#define PixelSetPixelColor fn_PixelSetPixelColor
+#else
+#define PixelSetMagickColor fn_PixelSetMagickColor
+#endif
+#define PixelSetRed fn_PixelSetRed
+#define PixelSyncIterator fn_PixelSyncIterator
+
+#define MagickSetSize fn_MagickSetSize
+#define MagickSetDepth fn_MagickSetDepth
+#ifdef HAVE_MAGICKAUTOORIENTIMAGE
+#define MagickAutoOrientImage fn_MagickAutoOrientImage
+#endif
+
+# endif /* HAVE_NTGUI WINDOWSNT */
+
+#ifdef HAVE_IMAGEMAGICK7
+/* ImageMagick 7 compatibility definitions.  Redefine API functions
+   here, after the w32 runtime linking support code.  */
+# define PixelSetMagickColor PixelSetPixelColor
+#endif
+
 
 /* Log ImageMagick error message.
    Useful when an ImageMagick function returns the status `MagickFalse'.  */
@@ -8438,7 +8687,7 @@ imagemagick_get_animation_cache (MagickWand *wand)
       pcache = &cache->next;
     }
 
-  DestroyString (signature);
+  MagickRelinquishMemory (signature);
   cache->update_time = current_timespec ();
   return cache;
 }
@@ -9012,13 +9261,14 @@ and `imagemagick-types-inhibit'.  */)
 {
   Lisp_Object typelist = Qnil;
   size_t numf = 0;
-  ExceptionInfo *ex;
   char **imtypes;
   size_t i;
 
-  ex = AcquireExceptionInfo ();
-  imtypes = GetMagickList ("*", &numf, ex);
-  DestroyExceptionInfo (ex);
+  if (imagemagick_type.init && !imagemagick_type.init ())
+    return Qnil;
+
+  MagickWandGenesis ();
+  imtypes = MagickQueryFormats ("*", &numf);
 
   for (i = 0; i < numf; i++)
     {
@@ -9028,6 +9278,8 @@ and `imagemagick-types-inhibit'.  */)
     }
 
   MagickRelinquishMemory (imtypes);
+  MagickWandTerminus ();
+
   return Fnreverse (typelist);
 }
 
