@@ -401,7 +401,7 @@ js_to_lisp (id value)
       else
         {
           if (type == 'i' || type == 'l')
-            return make_number (nsnum.longValue);
+            return make_fixnum (nsnum.longValue);
           else if (type == 'f' || type == 'd')
             return make_float (nsnum.doubleValue);
           /* else fall through.  */
@@ -532,8 +532,8 @@ nsxwidget_resize (struct xwidget *xw)
 Lisp_Object
 nsxwidget_get_size (struct xwidget *xw)
 {
-  return list2 (make_number (xw->xwWidget.frame.size.width),
-                make_number (xw->xwWidget.frame.size.height));
+  return list2 (make_fixnum (xw->xwWidget.frame.size.width),
+                make_fixnum (xw->xwWidget.frame.size.height));
 }
 
 /* Xwidget view, macOS Cocoa part.  */
