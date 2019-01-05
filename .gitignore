@@ -114,6 +114,9 @@ lisp/subdirs.el
 # Dependencies.
 deps/
 
+# user patches
+patches/
+
 # Logs and temporaries.
 *.log
 *.tmp
