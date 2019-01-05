@@ -4243,6 +4243,7 @@ ns_draw_glyph_string (struct glyph_string *s)
         {
           ns_dumpglyphs_image (s, r[0]);
           ns_reset_clipping (s->f);
+        }
       break;
 
     case XWIDGET_GLYPH:

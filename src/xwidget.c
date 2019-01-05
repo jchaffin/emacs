@@ -42,6 +42,7 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
    FIXME: Use the JavaScriptCore GLib API instead, and remove this hack.  */
 #if WEBKIT_CHECK_VERSION (2, 21, 1) && GNUC_PREREQ (4, 2, 0)
 # pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
 #elif defined (NS_IMPL_COCOA)
 #include "nsxwidget.h"
 #endif
@@ -96,8 +97,11 @@ Returns the newly constructed xwidget, or nil if construction fails.  */)
    Lisp_Object title, Lisp_Object width, Lisp_Object height,
    Lisp_Object arguments, Lisp_Object buffer)
 {
+  #if defined (USE_GTK)
   if (!xg_gtk_initialized)
     error ("make-xwidget: GTK has not been initialized");
+  #endif
+
   CHECK_SYMBOL (type);
   CHECK_FIXNAT (width);
   CHECK_FIXNAT (height);
@@ -568,8 +572,10 @@ xwidget_init_view (struct xwidget *xww,
                    int x, int y)
 {
 
+  #if defined (USE_GTK)
   if (!xg_gtk_initialized)
     error ("xwidget_init_view: GTK has not been initialized");
+  #endif
 
   struct xwidget_view *xv = allocate_xwidget_view ();
   Lisp_Object val;
@@ -682,7 +688,7 @@ x_draw_xwidget_glyph_string (struct glyph_string *s)
             }
           else
             {
-              message ("You can't share an xwidget (webkit2) among windows.");
+              // message ("You can't share an xwidget (webkit2) among windows.");
               return;
             }
         }
@@ -702,8 +708,8 @@ x_draw_xwidget_glyph_string (struct glyph_string *s)
       Lisp_Object xwl;
       XSETXWIDGET (xwl, xww);
       Fxwidget_resize (xwl,
-                       make_number (text_area_width),
-                       make_number (text_area_height));
+                       make_fixnum (text_area_width),
+                       make_fixnum (text_area_height));
     }
 
   clip_left = max (0, text_area_x - x);
@@ -792,13 +798,14 @@ xwidget_is_web_view (struct xwidget *xw)
 #define WEBKIT_FN_INIT()						\
   CHECK_XWIDGET (xwidget);						\
   struct xwidget *xw = XXWIDGET (xwidget);				\
-  if (!xw->widget_osr || !WEBKIT_IS_WEB_VIEW (xw->widget_osr))		\
-    {									\
-      printf ("ERROR xw->widget_osr does not hold a webkit instance\n"); \
-      return Qnil;							\
+  if (!xwidget_is_web_view (xw))          \
+    {                 \
+      printf ("ERROR xwidget does not hold a webkit instance\n"); \
+      return Qnil;              \
     }
-DEFUN ("xwidget-webkit-uri",
 
+
+DEFUN ("xwidget-webkit-uri",
        Fxwidget_webkit_uri, Sxwidget_webkit_uri,
        1, 1, 0,
        doc: /* Get the current URL of XWIDGET webkit.  */)
@@ -932,7 +939,6 @@ argument procedure FUN.*/)
   /* Protect script and fun during GC.  */
   intptr_t idx = save_script_callback (xw, script, fun);
 
-#if defined (USE_GTK)
   /* JavaScript execution happens asynchronously.  If an elisp
      callback function is provided we pass it to the C callback
      procedure that retrieves the return value.  */
