@@ -862,7 +862,7 @@ DEFUN ("xwidget-webkit-goto-history",
   CHECK_RANGED_INTEGER (rel_pos, -1, 1); /* -1, 0, 1 */
 #if defined (USE_GTK)
   WebKitWebView *wkwv = WEBKIT_WEB_VIEW (xw->widget_osr);
-  switch (XFASTINT (rel_pos)) {
+  switch (XINT(rel_pos)) {
   case -1: webkit_web_view_go_back (wkwv); break;
   case 0: webkit_web_view_reload (wkwv); break;
   case 1: webkit_web_view_go_forward (wkwv); break;
