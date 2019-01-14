@@ -1,0 +1,13 @@
+[Unit]
+Description=Emacs text editor
+Documentation=info:emacs man:emacs(1) https://gnu.org/software/emacs/
+
+[Service]
+Type=notify
+ExecStart=/usr/local/Cellar/emacs/27.0_50/bin/emacs --fg-daemon
+ExecStop=/usr/local/Cellar/emacs/27.0_50/bin/emacsclient --eval "(kill-emacs)"
+Environment=SSH_AUTH_SOCK=%t/keyring/ssh
+Restart=on-failure
+
+[Install]
+WantedBy=default.target
