@@ -5930,8 +5930,6 @@ read_process_output (Lisp_Object proc, int channel)
 	return nbytes;
       coding->mode |= CODING_MODE_LAST_BLOCK;
     }
-  /* Ignore carryover, it's been added by a previous iteration already.  */
-  p->nbytes_read += nbytes;
 
   /* At this point, NBYTES holds number of bytes just received
      (including the one in proc_buffered_char[channel]).  */
