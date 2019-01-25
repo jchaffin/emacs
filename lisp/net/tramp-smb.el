@@ -144,6 +144,7 @@ call, letting the SMB client use the default one."
 	 "NT_STATUS_NO_LOGON_SERVERS"
 	 "NT_STATUS_NO_SUCH_FILE"
 	 "NT_STATUS_NO_SUCH_USER"
+	 "NT_STATUS_NOT_A_DIRECTORY"
 	 "NT_STATUS_OBJECT_NAME_COLLISION"
 	 "NT_STATUS_OBJECT_NAME_INVALID"
 	 "NT_STATUS_OBJECT_NAME_NOT_FOUND"
@@ -1087,7 +1088,7 @@ PRESERVE-UID-GID and PRESERVE-EXTENDED-ATTRIBUTES are completely ignored."
 			   ;; Half a year.
 			   (time-since (nth 3 x)) (days-to-time 183))
 			  "%b %e %R"
-			"%b %e  %Y")
+			"%b %e %Y")
 		      (nth 3 x))))) ; date
 
 		 ;; We mark the file name.  The inserted name could be
@@ -1913,6 +1914,14 @@ If ARGUMENT is non-nil, use it as argument for
 		      share
 		      (tramp-get-connection-property p "smb-share" ""))))
 
+      ;; During completion, don't reopen a new connection.  We
+      ;; check this for the process related to
+      ;; `tramp-buffer-name'; otherwise `start-file-process'
+      ;; wouldn't run ever when `non-essential' is non-nil.
+      (when (and (tramp-completion-mode-p)
+		 (null (get-process (tramp-buffer-name vec))))
+	(throw 'non-essential 'non-essential))
+
       (save-match-data
 	;; There might be unread output from checking for share names.
 	(when buf (with-current-buffer buf (erase-buffer)))
@@ -1977,20 +1986,22 @@ If ARGUMENT is non-nil, use it as argument for
 		       tramp-smb-actions-without-share))
 
 		    ;; Check server version.
-		    (unless argument
-		      (with-current-buffer (tramp-get-connection-buffer vec)
-			(goto-char (point-min))
-			(search-forward-regexp tramp-smb-server-version nil t)
-			(let ((smbserver-version (match-string 0)))
-			  (unless
-			      (string-equal
-			       smbserver-version
-			       (tramp-get-connection-property
-				vec "smbserver-version" smbserver-version))
-			    (tramp-flush-directory-properties vec "")
-			    (tramp-flush-connection-properties vec))
-			  (tramp-set-connection-property
-			   vec "smbserver-version" smbserver-version))))
+		    ;; FIXME: With recent smbclient versions, this
+		    ;; information isn't printed anymore.
+		    ;; (unless argument
+		    ;;   (with-current-buffer (tramp-get-connection-buffer vec)
+		    ;; 	(goto-char (point-min))
+		    ;; 	(search-forward-regexp tramp-smb-server-version nil t)
+		    ;; 	(let ((smbserver-version (match-string 0)))
+		    ;; 	  (unless
+		    ;; 	      (string-equal
+		    ;; 	       smbserver-version
+		    ;; 	       (tramp-get-connection-property
+		    ;; 		vec "smbserver-version" smbserver-version))
+		    ;; 	    (tramp-flush-directory-properties vec "")
+		    ;; 	    (tramp-flush-connection-properties vec))
+		    ;; 	  (tramp-set-connection-property
+		    ;; 	   vec "smbserver-version" smbserver-version))))
 
 		    ;; Set chunksize to 1.  smbclient reads its input
 		    ;; character by character; if we send the string
@@ -2026,51 +2037,29 @@ If ARGUMENT is non-nil, use it as argument for
 ;; We don't use timeouts.  If needed, the caller shall wrap around.
 (defun tramp-smb-wait-for-output (vec)
   "Wait for output from smbclient command.
-Returns nil if an error message has appeared."
+Removes smb prompt.  Returns nil if an error message has appeared."
   (with-current-buffer (tramp-get-connection-buffer vec)
     (let ((p (get-buffer-process (current-buffer)))
-	  (found (progn (goto-char (point-min))
-			(re-search-forward tramp-smb-prompt nil t)))
-	  (err   (progn (goto-char (point-min))
-			(re-search-forward tramp-smb-errors nil t)))
-	  buffer-read-only)
+	  (inhibit-read-only t))
 
-      ;; Algorithm: get waiting output.  See if last line contains
-      ;; `tramp-smb-prompt' sentinel or `tramp-smb-errors' strings.
-      ;; If not, wait a bit and again get waiting output.
-      (while (and (not found) (not err) (process-live-p p))
-
-	;; Accept pending output.
-	(tramp-accept-process-output p 0.1)
-
-	;; Search for prompt.
-	(goto-char (point-min))
-	(setq found (re-search-forward tramp-smb-prompt nil t))
-
-	;; Search for errors.
-	(goto-char (point-min))
-	(setq err (re-search-forward tramp-smb-errors nil t)))
-
-      ;; When the process is still alive, read pending output.
-      (while (and (not found) (process-live-p p))
-
-	;; Accept pending output.
-	(tramp-accept-process-output p 0.1)
-
-	;; Search for prompt.
-	(goto-char (point-min))
-	(setq found (re-search-forward tramp-smb-prompt nil t)))
-
+      ;; Read pending output.
+      (goto-char (point-min))
+      (while (not (or (re-search-forward tramp-smb-prompt nil t)
+		      (re-search-forward tramp-smb-errors nil t)))
+	(while (tramp-accept-process-output p 0.1)
+	  (goto-char (point-min))))
       (tramp-message vec 6 "\n%s" (buffer-string))
 
       ;; Remove prompt.
-      (when found
+      (goto-char (point-min))
+      (when (re-search-forward tramp-smb-prompt nil t)
 	(goto-char (point-max))
 	(re-search-backward tramp-smb-prompt nil t)
 	(delete-region (point) (point-max)))
 
       ;; Return value is whether no error message has appeared.
-      (not err))))
+      (goto-char (point-min))
+      (not (re-search-forward tramp-smb-errors nil t)))))
 
 (defun tramp-smb-kill-winexe-function ()
   "Send SIGKILL to the winexe process."
