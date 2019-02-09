@@ -11493,7 +11493,7 @@ argument is passed to `next-file', which see).
 
 \(fn &optional FIRST-TIME)" t nil)
 
-(make-obsolete 'tags-loop-continue 'multifile-continue '"27.1")
+(make-obsolete 'tags-loop-continue 'fileloop-continue '"27.1")
 
 (autoload 'tags-search "etags" "\
 Search through all files listed in tags table for match for REGEXP.
@@ -11512,7 +11512,7 @@ Do `query-replace-regexp' of FROM with TO on all files listed in tags table.
 Third arg DELIMITED (prefix arg) means replace only word-delimited matches.
 If you exit (\\[keyboard-quit], RET or q), you can resume the query replace
 with the command \\[tags-loop-continue].
-For non-interactive use, superceded by `multifile-initialize-replace'.
+For non-interactive use, superceded by `fileloop-initialize-replace'.
 
 \(fn FROM TO &optional DELIMITED FILES)" t nil)
 
@@ -15220,7 +15220,7 @@ List of hook functions run by `grep-process-setup' (see `run-hooks').")
 
 (custom-autoload 'grep-setup-hook "grep" t)
 
-(defconst grep-regexp-alist `((,(concat "^\\(?:" "\\(?1:[^\0\n]+\\)\\(?3:\0\\)\\(?2:[0-9]+\\):" "\\|" "\\(?1:" "\\(?:[a-zA-Z]:\\)?" "[^\n:]+?[^\n/:]\\):[\11 ]*\\(?2:[1-9][0-9]*\\)[\11 ]*:" "\\)") 1 2 (,(lambda nil (when grep-highlight-matches (let* ((beg (match-end 0)) (end (save-excursion (goto-char beg) (line-end-position))) (mbeg (text-property-any beg end 'font-lock-face 'grep-match-face))) (when mbeg (- mbeg beg))))) \, (lambda nil (when grep-highlight-matches (let* ((beg (match-end 0)) (end (save-excursion (goto-char beg) (line-end-position))) (mbeg (text-property-any beg end 'font-lock-face 'grep-match-face)) (mend (and mbeg (next-single-property-change mbeg 'font-lock-face nil end)))) (when mend (- mend beg)))))) nil nil (3 '(face nil display ":"))) ("^Binary file \\(.+\\) matches$" 1 nil nil 0 1)) "\
+(defconst grep-regexp-alist `((,(concat "^\\(?:" "\\(?1:[^\0\n]+\\)\\(?3:\0\\)\\(?2:[0-9]+\\):" "\\|" "\\(?1:" "\\(?:[a-zA-Z]:\\)?" "[^\n:]+?[^\n/:]\\):[\11 ]*\\(?2:[1-9][0-9]*\\)[\11 ]*:" "\\)") 1 2 (,(lambda nil (when grep-highlight-matches (let* ((beg (match-end 0)) (end (save-excursion (goto-char beg) (line-end-position))) (mbeg (text-property-any beg end 'font-lock-face grep-match-face))) (when mbeg (- mbeg beg))))) \, (lambda nil (when grep-highlight-matches (let* ((beg (match-end 0)) (end (save-excursion (goto-char beg) (line-end-position))) (mbeg (text-property-any beg end 'font-lock-face grep-match-face)) (mend (and mbeg (next-single-property-change mbeg 'font-lock-face nil end)))) (when mend (- mend beg)))))) nil nil (3 '(face nil display ":"))) ("^Binary file \\(.+\\) matches$" 1 nil nil 0 1)) "\
 Regexp used to match grep hits.
 See `compilation-error-regexp-alist' for format details.")
 
@@ -17719,13 +17719,20 @@ must be available.
 (autoload 'create-image "image" "\
 Create an image.
 FILE-OR-DATA is an image file name or image data.
+
 Optional TYPE is a symbol describing the image type.  If TYPE is omitted
 or nil, try to determine the image type from its first few bytes
 of image data.  If that doesn't work, and FILE-OR-DATA is a file name,
 use its file extension as image type.
+
 Optional DATA-P non-nil means FILE-OR-DATA is a string containing image data.
+
 Optional PROPS are additional image attributes to assign to the image,
-like, e.g. `:mask MASK'.
+like, e.g. `:mask MASK'.  If the property `:scale' is not given and the
+display has a high resolution (more exactly, when the average width of a
+character in the default font is more than 10 pixels), the image is
+automatically scaled up in proportion to the default font.
+
 Value is the image created, or nil if images of type TYPE are not supported.
 
 Images should not be larger than specified by `max-image-size'.
@@ -22291,10 +22298,10 @@ QUALITY can be:
 
 ;;;***
 
-;;;### (autoloads nil "multifile" "multifile.el" (0 0 0 0))
-;;; Generated autoloads from multifile.el
+;;;### (autoloads nil "fileloop" "fileloop.el" (0 0 0 0))
+;;; Generated autoloads from fileloop.el
 
-(autoload 'multifile-initialize "multifile" "\
+(autoload 'fileloop-initialize "fileloop" "\
 Initialize a new round of operation on several files.
 FILES can be either a list of file names, or an iterator (used with `iter-next')
 which returns a file name at each step.
@@ -22307,22 +22314,22 @@ operating on the next file and nil otherwise.
 
 \(fn FILES SCAN-FUNCTION OPERATE-FUNCTION)" nil nil)
 
-(autoload 'multifile-initialize-search "multifile" "\
+(autoload 'fileloop-initialize-search "fileloop" "\
 
 
 \(fn REGEXP FILES CASE-FOLD)" nil nil)
 
-(autoload 'multifile-initialize-replace "multifile" "\
+(autoload 'fileloop-initialize-replace "fileloop" "\
 Initialize a new round of query&replace on several files.
 FROM is a regexp and TO is the replacement to use.
-FILES describes the file, as in `multifile-initialize'.
+FILES describes the file, as in `fileloop-initialize'.
 CASE-FOLD can be t, nil, or `default', the latter one meaning to obey
 the default setting of `case-fold-search'.
 DELIMITED if non-nil means replace only word-delimited matches.
 
 \(fn FROM TO FILES CASE-FOLD &optional DELIMITED)" nil nil)
 
-(if (fboundp 'register-definition-prefixes) (register-definition-prefixes "multifile" '("multifile-")))
+(if (fboundp 'register-definition-prefixes) (register-definition-prefixes "fileloop" '("fileloop-")))
 
 ;;;***
 
@@ -26448,14 +26455,14 @@ recognized.
 (autoload 'project-search "project" "\
 Search for REGEXP in all the files of the project.
 Stops when a match is found.
-To continue searching for next match, use command \\[multifile-continue].
+To continue searching for next match, use command \\[fileloop-continue].
 
 \(fn REGEXP)" t nil)
 
 (autoload 'project-query-replace "project" "\
 Search for REGEXP in all the files of the project.
 Stops when a match is found.
-To continue searching for next match, use command \\[multifile-continue].
+To continue searching for next match, use command \\[fileloop-continue].
 
 \(fn FROM TO)" t nil)
 
@@ -34755,7 +34762,7 @@ the output buffer or changing the window configuration.
 
 ;;;### (autoloads nil "tramp" "net/tramp.el" (0 0 0 0))
 ;;; Generated autoloads from net/tramp.el
-(push (purecopy '(tramp 2 4 1)) package--builtin-versions)
+(push (purecopy '(tramp 2 4 2 -1)) package--builtin-versions)
 
 (defvar tramp-mode t "\
 Whether Tramp is enabled.

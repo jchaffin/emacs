@@ -526,14 +526,17 @@ lost after dumping")))
                                 t))))
       (kill-emacs)))
 
-;; For machines with CANNOT_DUMP defined in config.h,
-;; this file must be loaded each time Emacs is run.
+;; This file must be loaded each time Emacs is run from scratch, e.g., temacs.
 ;; So run the startup code now.  First, remove `-l loadup' from args.
 
 (if (and (member (nth 1 command-line-args) '("-l" "--load"))
 	 (equal (nth 2 command-line-args) "loadup"))
     (setcdr command-line-args (nthcdr 3 command-line-args)))
 
+;; Don't keep `load-file-name' set during the top-level session!
+;; Otherwise, it breaks a lot of code which does things like
+;; (or load-file-name byte-compile-current-file).
+(setq load-file-name nil)
 (eval top-level)
 
 

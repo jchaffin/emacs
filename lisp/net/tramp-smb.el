@@ -721,7 +721,7 @@ PRESERVE-UID-GID and PRESERVE-EXTENDED-ATTRIBUTES are completely ignored."
   "Read ACL data from connection buffer."
   (unless (process-live-p proc)
     ;; Accept pending output.
-    (while (tramp-accept-process-output proc 0.1))
+    (while (tramp-accept-process-output proc))
     (with-current-buffer (tramp-get-connection-buffer vec)
       ;; There might be a hidden password prompt.
       (widen)
@@ -1048,7 +1048,7 @@ PRESERVE-UID-GID and PRESERVE-EXTENDED-ATTRIBUTES are completely ignored."
 	  (when (string-match-p "F" switches)
 	    (mapc
 	     (lambda (x)
-	       (when (not (zerop (length (car x))))
+	       (unless (zerop (length (car x)))
 		 (cond
 		  ((char-equal ?d (string-to-char (nth 1 x)))
 		   (setcar x (concat (car x) "/")))
@@ -1066,7 +1066,7 @@ PRESERVE-UID-GID and PRESERVE-EXTENDED-ATTRIBUTES are completely ignored."
 	  ;; Print entries.
 	  (mapc
 	   (lambda (x)
-	     (when (not (zerop (length (nth 0 x))))
+	     (unless (zerop (length (nth 0 x)))
 	       (let ((attr
 		      (when (tramp-smb-get-stat-capability v)
 			(ignore-errors
@@ -1374,10 +1374,10 @@ component is used as the target of the symlink."
 	(delete-file filename)))))
 
 (defun tramp-smb-action-set-acl (proc vec)
-  "Read ACL data from connection buffer."
+  "Set ACL data."
   (unless (process-live-p proc)
     ;; Accept pending output.
-    (while (tramp-accept-process-output proc 0.1))
+    (while (tramp-accept-process-output proc))
     (with-current-buffer (tramp-get-connection-buffer vec)
       (tramp-message vec 10 "\n%s" (buffer-string))
       (throw 'tramp-action 'ok))))
@@ -2043,10 +2043,8 @@ Removes smb prompt.  Returns nil if an error message has appeared."
 	  (inhibit-read-only t))
 
       ;; Read pending output.
-      (goto-char (point-min))
-      (while (not (or (re-search-forward tramp-smb-prompt nil t)
-		      (re-search-forward tramp-smb-errors nil t)))
-	(while (tramp-accept-process-output p 0.1)
+      (while (not (re-search-forward tramp-smb-prompt nil t))
+	(while (tramp-accept-process-output p 0)
 	  (goto-char (point-min))))
       (tramp-message vec 6 "\n%s" (buffer-string))
 

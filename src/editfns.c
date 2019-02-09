@@ -668,7 +668,7 @@ Field boundaries are not noticed if `inhibit-field-text-motion' is non-nil.  */)
     /* It is possible that NEW_POS is not within the same field as
        OLD_POS; try to move NEW_POS so that it is.  */
     {
-      ptrdiff_t shortage;
+      ptrdiff_t counted;
       Lisp_Object field_bound;
 
       if (fwd)
@@ -691,8 +691,8 @@ Field boundaries are not noticed if `inhibit-field-text-motion' is non-nil.  */)
 		 there's an intervening newline or not.  */
 	      || (find_newline (XFIXNAT (new_pos), -1,
 				XFIXNAT (field_bound), -1,
-				fwd ? -1 : 1, &shortage, NULL, 1),
-		  shortage != 0)))
+				fwd ? -1 : 1, &counted, NULL, 1),
+		  counted == 0)))
 	/* Constrain NEW_POS to FIELD_BOUND.  */
 	new_pos = field_bound;
 
@@ -1260,7 +1260,7 @@ name, or nil if there is no such user.  */)
   /* Substitute the login name for the &, upcasing the first character.  */
   if (q)
     {
-      Lisp_Object login = Fuser_login_name (make_fixnum (pw->pw_uid));
+      Lisp_Object login = Fuser_login_name (INT_TO_INTEGER (pw->pw_uid));
       USE_SAFE_ALLOCA;
       char *r = SAFE_ALLOCA (strlen (p) + SBYTES (login) + 1);
       memcpy (r, p, q - p);
@@ -1910,6 +1910,11 @@ determines whether case is significant or ignored.  */)
 
 #undef ELEMENT
 #undef EQUAL
+#define USE_HEURISTIC
+
+#ifdef USE_HEURISTIC
+#define DIFFSEQ_HEURISTIC
+#endif
 
 /* Counter used to rarely_quit in replace-buffer-contents.  */
 static unsigned short rbc_quitcounter;
@@ -2017,8 +2022,11 @@ differences between the two buffers.  */)
     .insertions = SAFE_ALLOCA (ins_bytes),
     .fdiag = buffer + size_b + 1,
     .bdiag = buffer + diags + size_b + 1,
+#ifdef DIFFSEQ_HEURISTIC
+    .heuristic = true,
+#endif
     /* FIXME: Find a good number for .too_expensive.  */
-    .too_expensive = 1000000,
+    .too_expensive = 64,
   };
   memclear (ctx.deletions, del_bytes);
   memclear (ctx.insertions, ins_bytes);
@@ -2291,10 +2299,11 @@ Both characters must have the same length of multi-byte form.  */)
 
 	      if (! NILP (noundo))
 		{
-		  if (MODIFF - 1 == SAVE_MODIFF)
-		    SAVE_MODIFF++;
-		  if (MODIFF - 1 == BUF_AUTOSAVE_MODIFF (current_buffer))
-		    BUF_AUTOSAVE_MODIFF (current_buffer)++;
+		  modiff_count m = MODIFF;
+		  if (SAVE_MODIFF == m - 1)
+		    SAVE_MODIFF = m;
+		  if (BUF_AUTOSAVE_MODIFF (current_buffer) == m - 1)
+		    BUF_AUTOSAVE_MODIFF (current_buffer) = m;
 		}
 
 	      /* The before-change-function may have moved the gap
