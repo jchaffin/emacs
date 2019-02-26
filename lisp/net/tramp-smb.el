@@ -1900,11 +1900,11 @@ If ARGUMENT is non-nil, use it as argument for
     ;; connection timeout.
     (with-current-buffer buf
       (goto-char (point-min))
-      (when (and (> (tramp-time-diff
-		     (current-time)
-		     (tramp-get-connection-property
-		      p "last-cmd-time" '(0 0 0)))
-		    60)
+      ;; `seconds-to-time' can be removed once we get rid of Emacs 24.
+      (when (and (time-less-p (seconds-to-time 60)
+			      (time-since
+			       (tramp-get-connection-property
+				p "last-cmd-time" (seconds-to-time 0))))
 		 (process-live-p p)
 		 (re-search-forward tramp-smb-errors nil t))
 	(delete-process p)
