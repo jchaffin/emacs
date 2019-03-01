@@ -145,6 +145,13 @@ EMACS_SOCKET_NAME environment variable to an appropriate value.
 *** When run by root, emacsclient no longer connects to non-root sockets.
 (Instead you can use Tramp methods to run root commands in a non-root Emacs.)
 
+---
+** Control of the threshold for using the 'distant-foreground' color.
+The threshold for color distance below which the 'distant-foreground'
+color of the face will be used instead of the foreground color can now
+be controlled via the new variable 'face-near-same-color-threshold'.
+The default value is 30000, as the previously hard-coded threshold.
+
 +++
 ** The function 'read-passwd' uses '*' as default character to hide passwords.
 
@@ -396,6 +403,10 @@ direction.  For example, 'C-x S-down' deletes the window below.
 With a prefix arg 'C-u', also kills the buffer in that window.
 With 'M-0', deletes the selected window and selects the window
 that was in the specified direction.
+
+*** New command 'windmove-swap-states-in-direction' binds default keys
+to the commands that swap the states of the selected window with the
+window in the specified direction.
 
 ** Octave mode
 The mode is automatically enabled in files that start with the
@@ -846,6 +857,9 @@ and case-sensitivity together with search strings in the search ring.
 ---
 *** Isearch now has its own tool-bar and menu-bar menu.
 
++++
+*** flush-lines prints and returns the number of deleted matching lines.
+
 ** Debugger
 
 +++
@@ -1142,6 +1156,7 @@ the 128...255 range, as expected.
 
 ** Frames
 
++++
 *** New command 'make-frame-on-monitor' makes a frame on the specified monitor.
 
 
