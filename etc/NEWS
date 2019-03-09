@@ -479,8 +479,15 @@ and compares their entire trees.
 to hg revert.
 
 ** Diff mode
-*** Hunks are now automatically refined by default.
-To disable it, set the new defcustom 'diff-font-lock-refine' to nil.
++++
+*** Hunks are now automatically refined by font-lock.
+To disable refinement, set the new defcustom 'diff-refine' to nil.
+To get back the old behavior where hunks are refined as you navigate
+through a diff, set 'diff-refine' to the symbol 'navigate'.
++++
+*** 'diff-auto-refine-mode' is deprecated in favor of 'diff-refine'.
+It is no longer enabled by default and binding it no longer has any
+effect.
 
 +++
 *** Better syntax highlighting of Diff hunks.
@@ -1159,6 +1166,11 @@ the 128...255 range, as expected.
 +++
 *** New command 'make-frame-on-monitor' makes a frame on the specified monitor.
 
++++
+*** New value of 'minibuffer' frame parameter 'child-frame'.
+This allows to create and parent immediately a minibuffer-only child
+frame when making a frame.
+
 
 * New Modes and Packages in Emacs 27.1
 
@@ -1297,9 +1309,6 @@ removed.
 ** 'self-insert-command' takes the char to insert as (optional) argument.
 
 ** 'lookup-key' can take a list of keymaps as argument.
-
-+++
-** New hook 'input-event-functions' run whenever a user-input is read.
 
 +++
 ** 'condition-case' now accepts 't' to match any error symbol.
@@ -1641,6 +1650,19 @@ MS-Windows.
 
 ** New module environment function 'process_input' to process user
 input while module code is running.
+
++++
+** The function 'regexp-opt' accepts an additional optional argument.
+By default, the regexp returned by 'regexp-opt' may match the strings
+in any order.  If the new third argument is non-nil, the match is
+guaranteed to be performed in the order given, as if the strings were
+made into a regexp by joining them with '\|'.
+
++++
+** The function 'regexp-opt', when given an empty list of strings, now
+returns a regexp that never matches anything, which is an identity for
+this operation.  Previously, the empty string was returned in this
+case.
 
 
 * Changes in Emacs 27.1 on Non-Free Operating Systems

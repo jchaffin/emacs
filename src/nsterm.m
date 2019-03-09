@@ -501,7 +501,7 @@ append2 (Lisp_Object list, Lisp_Object item)
    Utility to append to a list
    -------------------------------------------------------------------------- */
 {
-  return CALLN (Fnconc, list, list1 (item));
+  return nconc2 (list, list (item));
 }
 
 
@@ -8305,7 +8305,7 @@ not_in_argv (NSString *arg)
 
       type_sym = Qurl;
 
-      strings = Fcons (build_string ([[url absoluteString] UTF8String]), Qnil);
+      strings = list1 (build_string ([[url absoluteString] UTF8String]));
     }
   else if ([type isEqualToString: NSStringPboardType]
            || [type isEqualToString: NSTabularTextPboardType])
@@ -8317,7 +8317,7 @@ not_in_argv (NSString *arg)
 
       type_sym = Qnil;
 
-      strings = Fcons (build_string ([data UTF8String]), Qnil);
+      strings = list1 (build_string ([data UTF8String]));
     }
   else
     {

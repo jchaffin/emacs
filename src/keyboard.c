@@ -1328,7 +1328,7 @@ command_loop_1 (void)
 	  if (!NILP (Vquit_flag))
 	    {
 	      Vquit_flag = Qnil;
-	      Vunread_command_events = list1 (make_fixnum (quit_char));
+	      Vunread_command_events = list1i (quit_char);
 	    }
 	}
 
@@ -1476,8 +1476,12 @@ command_loop_1 (void)
       safe_run_hooks (Qpost_command_hook);
 
       /* If displaying a message, resize the echo area window to fit
-	 that message's size exactly.  */
-      if (!NILP (echo_area_buffer[0]))
+	 that message's size exactly.  Do this only if the echo area
+	 window is the minibuffer window of the selected frame.  See
+	 Bug#34317.  */
+      if (!NILP (echo_area_buffer[0])
+	  && (EQ (echo_area_window,
+		  FRAME_MINIBUF_WINDOW (XFRAME (selected_frame)))))
 	resize_echo_area_exactly ();
 
       /* If there are warnings waiting, process them.  */
@@ -2927,8 +2931,6 @@ read_char (int commandflag, Lisp_Object map,
   recorded = true;
   if (! NILP (also_record))
     record_char (also_record);
-
-  CALLN (Frun_hook_with_args, Qinput_event_functions, c);
 
   /* Wipe the echo area.
      But first, if we are about to use an input method,
@@ -11034,8 +11036,6 @@ syms_of_keyboard (void)
 
   DEFSYM (Qundefined, "undefined");
 
-  DEFSYM (Qinput_event_functions, "input-event-functions");
-
   /* Hooks to run before and after each command.  */
   DEFSYM (Qpre_command_hook, "pre-command-hook");
   DEFSYM (Qpost_command_hook, "post-command-hook");
@@ -11848,6 +11848,17 @@ preserve data in modified buffers that would otherwise be lost.
 If nil, Emacs crashes immediately in response to fatal signals.  */);
   attempt_orderly_shutdown_on_fatal_signal = true;
 
+  DEFVAR_LISP ("while-no-input-ignore-events",
+               Vwhile_no_input_ignore_events,
+               doc: /* Ignored events from while-no-input.  */);
+
+  DEFVAR_BOOL ("inhibit--record-char",
+	       inhibit_record_char,
+	       doc: /* If non-nil, don't record input events.
+This inhibits recording input events for the purposes of keyboard
+macros, dribble file, and `recent-keys'.
+Internal use only.  */);
+
   pdumper_do_now_and_after_load (syms_of_keyboard_for_pdumper);
 }
 
@@ -11882,17 +11893,8 @@ syms_of_keyboard_for_pdumper (void)
   eassert (initial_kboard == NULL);
   initial_kboard = allocate_kboard (Qt);
 
-  DEFVAR_LISP ("while-no-input-ignore-events",
-               Vwhile_no_input_ignore_events,
-               doc: /* Ignored events from while-no-input.  */);
   Vwhile_no_input_ignore_events = Qnil;
 
-  DEFVAR_BOOL ("inhibit--record-char",
-	       inhibit_record_char,
-	       doc: /* If non-nil, don't record input events.
-This inhibits recording input events for the purposes of keyboard
-macros, dribble file, and `recent-keys'.
-Internal use only.  */);
   inhibit_record_char = false;
 }
 

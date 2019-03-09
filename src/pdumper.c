@@ -2064,7 +2064,7 @@ dump_interval_tree (struct dump_context *ctx,
                     INTERVAL tree,
                     dump_off parent_offset)
 {
-#if CHECK_STRUCTS && !defined (HASH_interval_9110163DA0)
+#if CHECK_STRUCTS && !defined (HASH_interval_1B38941C37)
 # error "interval changed. See CHECK_STRUCTS comment."
 #endif
   // TODO: output tree breadth-first?
@@ -4055,7 +4055,7 @@ types.  */)
   /* Clear out any detritus in memory.  */
   do {
     number_finalizers_run = 0;
-    Fgarbage_collect ();
+    garbage_collect ();
   } while (number_finalizers_run);
 
   ptrdiff_t count = SPECPDL_INDEX ();
@@ -5580,8 +5580,7 @@ Value is nil if this session was not started using a portable dump file.*/)
 
   dump_fn = Fexpand_file_name (dump_fn, Qnil);
 
-  return CALLN (Flist,
-		Fcons (Qdumped_with_pdumper, Qt),
+  return list3 (Fcons (Qdumped_with_pdumper, Qt),
 		Fcons (Qload_time, make_float (dump_private.load_time)),
 		Fcons (Qdump_file_name, dump_fn));
 }

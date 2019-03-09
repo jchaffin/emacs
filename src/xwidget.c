@@ -1019,8 +1019,7 @@ Emacs allocated area accordingly.  */)
 #if defined (USE_GTK)
   GtkRequisition requisition;
   gtk_widget_size_request (XXWIDGET (xwidget)->widget_osr, &requisition);
-  return list2 (make_fixnum (requisition.width),
-		make_fixnum (requisition.height));
+  return list2i (requisition.width, requisition.height);
 #elif defined (NS_IMPL_COCOA)
   return nsxwidget_get_size(XXWIDGET (xwidget));
 #endif
