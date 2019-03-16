@@ -1349,7 +1349,7 @@ Note that the style variables are always made local to the buffer."
 	     ;; We're at the start of a string.
 	     (memq (char-before) c-string-delims)))
 	(if (c-unescaped-nls-in-string-p (1- (point)))
-	    (looking-at "\\(\\\\\\(.\\|\n|\r\\)\\|[^\"]\\)*")
+	    (looking-at "\\(\\\\\\(.\\|\n\\|\r\\)\\|[^\"]\\)*")
 	  (looking-at (cdr (assq (char-before) c-string-innards-re-alist))))
 	(cond
 	 ((memq (char-after (match-end 0)) '(?\n ?\r))
@@ -1803,7 +1803,16 @@ Note that this is a strict tail, so won't match, e.g. \"0x....\".")
 	;; Go to a less nested declaration each time round this loop.
 	(and
 	 (setq old-pos (point))
-	 (c-syntactic-skip-backward "^;{}" bod-lim t)
+	 (let (pseudo)
+	   (while
+	       (progn
+		 (c-syntactic-skip-backward "^;{}" bod-lim t)
+		 (and (eq (char-before) ?})
+		      (save-excursion
+			(backward-char)
+			(setq pseudo (c-cheap-inside-bracelist-p (c-parse-state))))))
+	     (goto-char pseudo))
+	   t)
 	 (> (point) bod-lim)
 	 (progn (c-forward-syntactic-ws)
 		;; Have we got stuck in a comment at EOB?

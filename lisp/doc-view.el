@@ -1476,6 +1476,14 @@ For now these keys are useful:
   (interactive)
   (tooltip-show (doc-view-current-info)))
 
+;; We define an own major mode for DocView's text display so that we
+;; can easily distinguish when we want to toggle back because
+;; text-mode is a likely candidate for a default major-mode
+;; (bug#34451).
+(define-derived-mode doc-view--text-view-mode text-mode "DV/Text"
+  "View mode used in DocView's text buffers."
+  (view-mode))
+
 (defun doc-view-open-text ()
   "Display the current doc's contents as text."
   (interactive)
@@ -1487,15 +1495,22 @@ For now these keys are useful:
 		(buffer-undo-list t)
 		(dv-bfn doc-view--buffer-file-name))
 	    (erase-buffer)
+            ;; FIXME: Replacing the buffer's PDF content with its txt rendering
+            ;; is pretty risky.  We should probably use *another*
+            ;; buffer instead, so there's much less risk of
+            ;; overwriting the PDF file with some text rendering.
 	    (set-buffer-multibyte t)
 	    (insert-file-contents txt)
-	    (text-mode)
+	    (doc-view--text-view-mode)
 	    (setq-local doc-view--buffer-file-name dv-bfn)
 	    (set-buffer-modified-p nil)
 	    (doc-view-minor-mode)
 	    (add-hook 'write-file-functions
 		      (lambda ()
-			(when (eq major-mode 'text-mode)
+                        ;; FIXME: If the user changes major mode and then
+                        ;; saves the buffer, the PDF file will be clobbered
+                        ;; with its txt rendering!
+			(when (eq major-mode 'doc-view--text-view-mode)
 			  (error "Cannot save text contents of document %s"
 				 buffer-file-name)))
 		      nil t))
@@ -1519,7 +1534,7 @@ For now these keys are useful:
     ;; normal mode.
     (doc-view-fallback-mode)
     (doc-view-minor-mode 1))
-   ((eq major-mode 'text-mode)
+   ((eq major-mode 'doc-view--text-view-mode)
     (let ((buffer-undo-list t))
       ;; We're currently viewing the document's text contents, so switch
       ;; back to .
