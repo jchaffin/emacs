@@ -674,7 +674,7 @@ DUMP_CLEAR_REFERRER (struct dump_context *ctx)
 }
 
 static Lisp_Object
-dump_ptr_referrer (const char *label, void *address)
+dump_ptr_referrer (const char *label, void const *address)
 {
   char buf[128];
   buf[0] = '\0';
@@ -1631,7 +1631,7 @@ dump_emacs_reloc_to_dump_ptr_raw (struct dump_context *ctx,
    automatically queues the value for dumping if necessary.  */
 static void
 dump_emacs_reloc_to_lv (struct dump_context *ctx,
-                        Lisp_Object *emacs_ptr,
+			Lisp_Object const *emacs_ptr,
                         Lisp_Object value)
 {
   if (dump_object_self_representing_p (value))
@@ -1659,7 +1659,7 @@ dump_emacs_reloc_to_lv (struct dump_context *ctx,
    back into the Emacs image.  */
 static void
 dump_emacs_reloc_to_emacs_ptr_raw (struct dump_context *ctx, void *emacs_ptr,
-                                   void *target_emacs_ptr)
+				   void const *target_emacs_ptr)
 {
   if (!ctx->flags.dump_object_contents)
     return;
@@ -1738,7 +1738,8 @@ dump_remember_fixup_ptr_raw (struct dump_context *ctx,
 }
 
 static void
-dump_root_visitor (Lisp_Object *root_ptr, enum gc_root_type type, void *data)
+dump_root_visitor (Lisp_Object const *root_ptr, enum gc_root_type type,
+		   void *data)
 {
   struct dump_context *ctx = data;
   Lisp_Object value = *root_ptr;
@@ -3212,7 +3213,11 @@ dump_charset_table (struct dump_context *ctx)
   ctx->flags.pack_objects = true;
   dump_align_output (ctx, DUMP_ALIGNMENT);
   dump_off offset = ctx->offset;
-  for (int i = 0; i < charset_table_used; ++i)
+  /* We are dumping the entire table, not just the used slots, because
+     otherwise when we restore from the pdump file, the actual size of
+     the table will be smaller than charset_table_size, and we will
+     crash if/when a new charset is defined.  */
+  for (int i = 0; i < charset_table_size; ++i)
     dump_charset (ctx, i);
   dump_emacs_reloc_to_dump_ptr_raw (ctx, &charset_table, offset);
   ctx->flags = old_flags;

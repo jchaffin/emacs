@@ -25,7 +25,7 @@
 ;;; Code:
 
 (ert-deftest rx-char-any ()
-  "Test character alternatives with `\]' and `-' (Bug#25123)."
+  "Test character alternatives with `]' and `-' (Bug#25123)."
   (should (string-match
            (rx string-start (1+ (char (?\] . ?\{) (?< . ?\]) (?- . ?:)))
                string-end)
@@ -39,6 +39,10 @@
                  "[\n-\r]"))
   (should (equal (rx (any "\a-\n"))
                  "[\a-\n]")))
+
+(ert-deftest rx-char-any-range-bad ()
+  (should-error (rx (any "0-9a-Z")))
+  (should-error (rx (any (?0 . ?9) (?a . ?Z)))))
 
 (ert-deftest rx-char-any-raw-byte ()
   "Test raw bytes in character alternatives."
