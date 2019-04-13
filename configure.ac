@@ -537,19 +537,21 @@ fi)
 
 AC_ARG_ENABLE(checking,
 [AS_HELP_STRING([--enable-checking@<:@=LIST@:>@],
-		[enable expensive run-time checks.  With LIST,
+		[enable expensive checks.  With LIST,
 		 enable only specific categories of checks.
 		 Categories are: all,yes,no.
 		 Flags are: stringbytes, stringoverrun, stringfreelist,
-		 xmallocoverrun, conslist, glyphs])],
+		 structs, xmallocoverrun, conslist, glyphs])],
 [ac_checking_flags="${enableval}"],[])
 IFS="${IFS= 	}"; ac_save_IFS="$IFS"; IFS="$IFS,"
+CHECK_STRUCTS=false
 for check in $ac_checking_flags
 do
 	case $check in
 	# these set all the flags to specific states
 	yes)		ac_enable_checking=1 ;;
 	no)		ac_enable_checking= ;
+			CHECK_STRUCTS=false
 			ac_gc_check_stringbytes= ;
 	                ac_gc_check_string_overrun= ;
 	                ac_gc_check_string_free_list= ;
@@ -557,6 +559,7 @@ do
 	                ac_gc_check_cons_list= ;
 			ac_glyphs_debug= ;;
 	all)		ac_enable_checking=1 ;
+			CHECK_STRUCTS=true
 			ac_gc_check_stringbytes=1 ;
 	                ac_gc_check_string_overrun=1 ;
 	                ac_gc_check_string_free_list=1 ;
@@ -567,6 +570,7 @@ do
 	stringbytes)	ac_gc_check_stringbytes=1 ;;
 	stringoverrun)	ac_gc_check_string_overrun=1 ;;
 	stringfreelist) ac_gc_check_string_free_list=1 ;;
+	structs)	CHECK_STRUCTS=true ;;
 	xmallocoverrun)	ac_xmalloc_overrun=1 ;;
 	conslist)	ac_gc_check_cons_list=1 ;;
 	glyphs)		ac_glyphs_debug=1 ;;
@@ -579,6 +583,15 @@ if test x$ac_enable_checking != x ; then
   AC_DEFINE(ENABLE_CHECKING, 1,
 [Define to 1 if expensive run-time data type and consistency checks are enabled.])
 fi
+if $CHECK_STRUCTS; then
+  AC_DEFINE([CHECK_STRUCTS], 1,
+    [Define this to check whether someone updated the portable dumper
+     code after changing the layout of a structure that it uses.
+     If you change one of these structures, check that the pdumper.c
+     code is still valid, and update the pertinent hash in pdumper.c
+     by manually copying the hash from the newly-generated dmpstruct.h.])
+fi
+AC_SUBST([CHECK_STRUCTS])
 if test x$ac_gc_check_stringbytes != x ; then
   AC_DEFINE(GC_CHECK_STRING_BYTES, 1,
 [Define this temporarily to hunt a bug.  If defined, the size of
@@ -2959,7 +2972,7 @@ fi
 AC_SUBST(LIBSELINUX_LIBS)
 
 HAVE_GNUTLS=no
-if test "${with_gnutls}" = "yes" ; then
+if test "${with_gnutls}" != "no" ; then
   EMACS_CHECK_MODULES([LIBGNUTLS], [gnutls >= 2.12.2],
     [HAVE_GNUTLS=yes], [HAVE_GNUTLS=no])
   if test "${HAVE_GNUTLS}" = "yes"; then
@@ -3530,7 +3543,10 @@ fi
 
 if test "${HAVE_X11}" = "yes"; then
   dnl Avoid Xpm on AIX unless requested, as it crashes; see Bug#17598.
-  test "$opsys$with_xpm_set" = aix4-2 && with_xpm=no
+  case $opsys,$with_xpm_set,$with_xpm in
+    aix4-2,set,yes) ;;
+    aix4-2,*) with_xpm=no;;
+  esac
 
   if test "${with_xpm}" != "no"; then
     AC_CHECK_HEADER(X11/xpm.h,
@@ -3848,28 +3864,46 @@ AC_SUBST(LIBGIF)
 
 dnl Check for required libraries.
 MISSING=
-WITH_NO=
+WITH_IFAVAILABLE=
 if test "${HAVE_X11}" = "yes"; then
-  test "${with_xpm}" != "no" && test "${HAVE_XPM}" != "yes" &&
-    MISSING="libXpm" && WITH_NO="--with-xpm=no"
-  test "${with_jpeg}" != "no" && test "${HAVE_JPEG}" != "yes" &&
-    MISSING="$MISSING libjpeg" && WITH_NO="$WITH_NO --with-jpeg=no"
-  test "${with_png}" != "no" && test "${HAVE_PNG}" != "yes" &&
-    MISSING="$MISSING libpng" && WITH_NO="$WITH_NO --with-png=no"
-  test "${with_gif}" != "no" && test "${HAVE_GIF}" != "yes" &&
-    MISSING="$MISSING libgif/libungif" && WITH_NO="$WITH_NO --with-gif=no"
-  test "${with_tiff}" != "no" && test "${HAVE_TIFF}" != "yes" &&
-    MISSING="$MISSING libtiff" && WITH_NO="$WITH_NO --with-tiff=no"
+  case $with_xpm,$HAVE_XPM in
+    no,* | ifavailable,* | *,yes) ;;
+    *) MISSING="libXpm"
+       WITH_IFAVAILABLE="--with-xpm=ifavailable";;
+  esac
+  case $with_jpeg,$HAVE_JPEG in
+    no,* | ifavailable,* | *,yes) ;;
+    *) MISSING="$MISSING libjpeg"
+       WITH_IFAVAILABLE="$WITH_IFAVAILABLE --with-jpeg=ifavailable";;
+  esac
+  case $with_png,$HAVE_PNG in
+    no,* | ifavailable,* | *,yes) ;;
+    *) MISSING="$MISSING libpng"
+       WITH_IFAVAILABLE="$WITH_IFAVAILABLE --with-png=ifavailable";;
+  esac
+  case $with_gif,$HAVE_GIF in
+    no,* | ifavailable,* | *,yes) ;;
+    *) MISSING="$MISSING libgif/libungif"
+       WITH_IFAVAILABLE="$WITH_IFAVAILABLE --with-gif=ifavailable";;
+  esac
+  case $with_tiff,$HAVE_TIFF in
+    no,* | ifavailable,* | *,yes) ;;
+    *) MISSING="$MISSING libtiff"
+       WITH_IFAVAILABLE="$WITH_IFAVAILABLE --with-tiff=ifavailable";;
+  esac
 fi
-test "${with_gnutls}" != "no" && test "${HAVE_GNUTLS}" != "yes" &&
-  MISSING="$MISSING gnutls" && WITH_NO="$WITH_NO --with-gnutls=no"
+case $with_gnutls,$HAVE_GNUTLS in
+  no,* | ifavailable,* | *,yes) ;;
+  *) MISSING="$MISSING gnutls"
+     WITH_IFAVAILABLE="$WITH_IFAVAILABLE --with-gnutls=ifavailable";;
+esac
 if test "X${MISSING}" != X; then
   AC_MSG_ERROR([The following required libraries were not found:
     $MISSING
 Maybe some development libraries/packages are missing?
-If you don't want to link with them give
-    $WITH_NO
-as options to configure])
+To build anyway, give:
+    $WITH_IFAVAILABLE
+as options to configure.])
 fi
 
 ### Use -lgpm if available, unless '--with-gpm=no'.

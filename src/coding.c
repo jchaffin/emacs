@@ -5719,7 +5719,7 @@ setup_coding_system (Lisp_Object coding_system, struct coding_system *coding)
       coding->common_flags |= CODING_REQUIRE_DETECTION_MASK;
       coding->spec.undecided.inhibit_nbd
 	= (encode_inhibit_flag
-	   (AREF (attrs, coding_attr_undecided_inhibit_null_byte_detection)));
+	   (AREF (attrs, coding_attr_undecided_inhibit_nul_byte_detection)));
       coding->spec.undecided.inhibit_ied
 	= (encode_inhibit_flag
 	   (AREF (attrs, coding_attr_undecided_inhibit_iso_escape_detection)));
@@ -6514,9 +6514,9 @@ detect_coding (struct coding_system *coding)
     {
       int c, i;
       struct coding_detection_info detect_info;
-      bool null_byte_found = 0, eight_bit_found = 0;
+      bool nul_byte_found = 0, eight_bit_found = 0;
       bool inhibit_nbd = inhibit_flag (coding->spec.undecided.inhibit_nbd,
-				       inhibit_null_byte_detection);
+				       inhibit_nul_byte_detection);
       bool inhibit_ied = inhibit_flag (coding->spec.undecided.inhibit_ied,
 				       inhibit_iso_escape_detection);
       bool prefer_utf_8 = coding->spec.undecided.prefer_utf_8;
@@ -6529,7 +6529,7 @@ detect_coding (struct coding_system *coding)
 	  if (c & 0x80)
 	    {
 	      eight_bit_found = 1;
-	      if (null_byte_found)
+	      if (nul_byte_found)
 		break;
 	    }
 	  else if (c < 0x20)
@@ -6544,7 +6544,7 @@ detect_coding (struct coding_system *coding)
 		      if (! (detect_info.rejected & CATEGORY_MASK_ISO_7_ELSE))
 			{
 			  /* We didn't find an 8-bit code.  We may
-			     have found a null-byte, but it's very
+			     have found a NUL-byte, but it's very
 			     rare that a binary file conforms to
 			     ISO-2022.  */
 			  src = src_end;
@@ -6556,7 +6556,7 @@ detect_coding (struct coding_system *coding)
 		}
 	      else if (! c && !inhibit_nbd)
 		{
-		  null_byte_found = 1;
+		  nul_byte_found = 1;
 		  if (eight_bit_found)
 		    break;
 		}
@@ -6588,7 +6588,7 @@ detect_coding (struct coding_system *coding)
 	    coding->head_ascii++;
 	}
 
-      if (null_byte_found || eight_bit_found
+      if (nul_byte_found || eight_bit_found
 	  || coding->head_ascii < coding->src_bytes
 	  || detect_info.found)
 	{
@@ -6606,7 +6606,7 @@ detect_coding (struct coding_system *coding)
 	      }
 	  else
 	    {
-	      if (null_byte_found)
+	      if (nul_byte_found)
 		{
 		  detect_info.checked |= ~CATEGORY_MASK_UTF_16;
 		  detect_info.rejected |= ~CATEGORY_MASK_UTF_16;
@@ -6679,7 +6679,7 @@ detect_coding (struct coding_system *coding)
 	      else
 		found = CODING_ID_NAME (this->id);
 	    }
-	  else if (null_byte_found)
+	  else if (nul_byte_found)
 	    found = Qno_conversion;
 	  else if ((detect_info.rejected & CATEGORY_MASK_ANY)
 		   == CATEGORY_MASK_ANY)
@@ -7785,7 +7785,7 @@ encode_coding (struct coding_system *coding)
 
 
 /* Name (or base name) of work buffer for code conversion.  */
-static Lisp_Object Vcode_conversion_workbuf_name;
+Lisp_Object Vcode_conversion_workbuf_name;
 
 /* A working buffer used by the top level conversion.  Once it is
    created, it is never destroyed.  It has the name
@@ -7796,43 +7796,6 @@ static Lisp_Object Vcode_conversion_reused_workbuf;
 
 /* True iff Vcode_conversion_reused_workbuf is already in use.  */
 static bool reused_workbuf_in_use;
-
-
-/* Return a working buffer of code conversion.  MULTIBYTE specifies the
-   multibyteness of returning buffer.  */
-
-static Lisp_Object
-make_conversion_work_buffer (bool multibyte)
-{
-  Lisp_Object name, workbuf;
-  struct buffer *current;
-
-  if (reused_workbuf_in_use)
-    {
-      name = Fgenerate_new_buffer_name (Vcode_conversion_workbuf_name, Qnil);
-      workbuf = Fget_buffer_create (name);
-    }
-  else
-    {
-      reused_workbuf_in_use = 1;
-      if (NILP (Fbuffer_live_p (Vcode_conversion_reused_workbuf)))
-	Vcode_conversion_reused_workbuf
-	  = Fget_buffer_create (Vcode_conversion_workbuf_name);
-      workbuf = Vcode_conversion_reused_workbuf;
-    }
-  current = current_buffer;
-  set_buffer_internal (XBUFFER (workbuf));
-  /* We can't allow modification hooks to run in the work buffer.  For
-     instance, directory_files_internal assumes that file decoding
-     doesn't compile new regexps.  */
-  Fset (Fmake_local_variable (Qinhibit_modification_hooks), Qt);
-  Ferase_buffer ();
-  bset_undo_list (current_buffer, Qt);
-  bset_enable_multibyte_characters (current_buffer, multibyte ? Qt : Qnil);
-  set_buffer_internal (current);
-  return workbuf;
-}
-
 
 static void
 code_conversion_restore (Lisp_Object arg)
@@ -7857,9 +7820,39 @@ code_conversion_save (bool with_work_buf, bool multibyte)
   Lisp_Object workbuf = Qnil;
 
   if (with_work_buf)
-    workbuf = make_conversion_work_buffer (multibyte);
+    {
+      if (reused_workbuf_in_use)
+	{
+	  Lisp_Object name
+	    = Fgenerate_new_buffer_name (Vcode_conversion_workbuf_name, Qnil);
+	  workbuf = Fget_buffer_create (name);
+	}
+      else
+	{
+	  if (NILP (Fbuffer_live_p (Vcode_conversion_reused_workbuf)))
+	    Vcode_conversion_reused_workbuf
+	      = Fget_buffer_create (Vcode_conversion_workbuf_name);
+	  workbuf = Vcode_conversion_reused_workbuf;
+	}
+    }
   record_unwind_protect (code_conversion_restore,
 			 Fcons (Fcurrent_buffer (), workbuf));
+  if (!NILP (workbuf))
+    {
+      struct buffer *current = current_buffer;
+      set_buffer_internal (XBUFFER (workbuf));
+      /* We can't allow modification hooks to run in the work buffer.  For
+	 instance, directory_files_internal assumes that file decoding
+	 doesn't compile new regexps.  */
+      Fset (Fmake_local_variable (Qinhibit_modification_hooks), Qt);
+      Ferase_buffer ();
+      bset_undo_list (current_buffer, Qt);
+      bset_enable_multibyte_characters (current_buffer, multibyte ? Qt : Qnil);
+      if (EQ (workbuf, Vcode_conversion_reused_workbuf))
+	reused_workbuf_in_use = 1;
+      set_buffer_internal (current);
+    }
+
   return workbuf;
 }
 
@@ -8448,7 +8441,7 @@ from_unicode (Lisp_Object str)
 Lisp_Object
 from_unicode_buffer (const wchar_t *wstr)
 {
-  /* We get one of the two final null bytes for free.  */
+  /* We get one of the two final NUL bytes for free.  */
   ptrdiff_t len = 1 + sizeof (wchar_t) * wcslen (wstr);
   AUTO_STRING_WITH_LEN (str, (char *) wstr, len);
   return from_unicode (str);
@@ -8461,7 +8454,7 @@ to_unicode (Lisp_Object str, Lisp_Object *buf)
   /* We need to make another copy (in addition to the one made by
      code_convert_string_norecord) to ensure that the final string is
      _doubly_ zero terminated --- that is, that the string is
-     terminated by two zero bytes and one utf-16le null character.
+     terminated by two zero bytes and one utf-16le NUL character.
      Because strings are already terminated with a single zero byte,
      we just add one additional zero. */
   str = make_uninit_string (SBYTES (*buf) + 1);
@@ -8577,7 +8570,7 @@ detect_coding_system (const unsigned char *src,
   ptrdiff_t id;
   struct coding_detection_info detect_info;
   enum coding_category base_category;
-  bool null_byte_found = 0, eight_bit_found = 0;
+  bool nul_byte_found = 0, eight_bit_found = 0;
 
   if (NILP (coding_system))
     coding_system = Qundecided;
@@ -8604,7 +8597,7 @@ detect_coding_system (const unsigned char *src,
       struct coding_system *this UNINIT;
       int c, i;
       bool inhibit_nbd = inhibit_flag (coding.spec.undecided.inhibit_nbd,
-				       inhibit_null_byte_detection);
+				       inhibit_nul_byte_detection);
       bool inhibit_ied = inhibit_flag (coding.spec.undecided.inhibit_ied,
 				       inhibit_iso_escape_detection);
       bool prefer_utf_8 = coding.spec.undecided.prefer_utf_8;
@@ -8616,7 +8609,7 @@ detect_coding_system (const unsigned char *src,
 	  if (c & 0x80)
 	    {
 	      eight_bit_found = 1;
-	      if (null_byte_found)
+	      if (nul_byte_found)
 		break;
 	    }
 	  else if (c < 0x20)
@@ -8631,7 +8624,7 @@ detect_coding_system (const unsigned char *src,
 		      if (! (detect_info.rejected & CATEGORY_MASK_ISO_7_ELSE))
 			{
 			  /* We didn't find an 8-bit code.  We may
-			     have found a null-byte, but it's very
+			     have found a NUL-byte, but it's very
 			     rare that a binary file confirm to
 			     ISO-2022.  */
 			  src = src_end;
@@ -8643,7 +8636,7 @@ detect_coding_system (const unsigned char *src,
 		}
 	      else if (! c && !inhibit_nbd)
 		{
-		  null_byte_found = 1;
+		  nul_byte_found = 1;
 		  if (eight_bit_found)
 		    break;
 		}
@@ -8654,7 +8647,7 @@ detect_coding_system (const unsigned char *src,
 	    coding.head_ascii++;
 	}
 
-      if (null_byte_found || eight_bit_found
+      if (nul_byte_found || eight_bit_found
 	  || coding.head_ascii < coding.src_bytes
 	  || detect_info.found)
 	{
@@ -8669,7 +8662,7 @@ detect_coding_system (const unsigned char *src,
 	      }
 	  else
 	    {
-	      if (null_byte_found)
+	      if (nul_byte_found)
 		{
 		  detect_info.checked |= ~CATEGORY_MASK_UTF_16;
 		  detect_info.rejected |= ~CATEGORY_MASK_UTF_16;
@@ -8716,7 +8709,7 @@ detect_coding_system (const unsigned char *src,
 	}
 
       if ((detect_info.rejected & CATEGORY_MASK_ANY) == CATEGORY_MASK_ANY
-	  || null_byte_found)
+	  || nul_byte_found)
 	{
 	  detect_info.found = CATEGORY_MASK_RAW_TEXT;
 	  id = CODING_SYSTEM_ID (Qno_conversion);
@@ -8818,7 +8811,7 @@ detect_coding_system (const unsigned char *src,
       {
 	if (detect_info.found & ~CATEGORY_MASK_UTF_16)
 	  {
-	    if (null_byte_found)
+	    if (nul_byte_found)
 	      normal_eol = EOL_SEEN_LF;
 	    else
 	      normal_eol = detect_eol (coding.source, src_bytes,
@@ -10478,8 +10471,8 @@ usage: (define-coding-system-internal ...)  */)
     {
       if (nargs < coding_arg_undecided_max)
 	goto short_args;
-      ASET (attrs, coding_attr_undecided_inhibit_null_byte_detection,
-	    args[coding_arg_undecided_inhibit_null_byte_detection]);
+      ASET (attrs, coding_attr_undecided_inhibit_nul_byte_detection,
+	    args[coding_arg_undecided_inhibit_nul_byte_detection]);
       ASET (attrs, coding_attr_undecided_inhibit_iso_escape_detection,
 	    args[coding_arg_undecided_inhibit_iso_escape_detection]);
       ASET (attrs, coding_attr_undecided_prefer_utf_8,
@@ -11234,18 +11227,18 @@ to explicitly specify some coding system that doesn't use ISO-2022
 escape sequence (e.g., `latin-1') on reading by \\[universal-coding-system-argument].  */);
   inhibit_iso_escape_detection = 0;
 
-  DEFVAR_BOOL ("inhibit-null-byte-detection",
-	       inhibit_null_byte_detection,
-	       doc: /* If non-nil, Emacs ignores null bytes on code detection.
+  DEFVAR_BOOL ("inhibit-nul-byte-detection",
+	       inhibit_nul_byte_detection,
+	       doc: /* If non-nil, Emacs ignores NUL bytes on code detection.
 By default, Emacs treats it as binary data, and does not attempt to
 decode it.  The effect is as if you specified `no-conversion' for
 reading that text.
 
-Set this to non-nil when a regular text happens to include null bytes.
-Examples are Index nodes of Info files and null-byte delimited output
-from GNU Find and GNU Grep.  Emacs will then ignore the null bytes and
+Set this to non-nil when a regular text happens to include NUL bytes.
+Examples are Index nodes of Info files and NUL-byte delimited output
+from GNU Find and GNU Grep.  Emacs will then ignore the NUL bytes and
 decode text as usual.  */);
-  inhibit_null_byte_detection = 0;
+  inhibit_nul_byte_detection = 0;
 
   DEFVAR_BOOL ("disable-ascii-optimization", disable_ascii_optimization,
 	       doc: /* If non-nil, Emacs does not optimize code decoder for ASCII files.
@@ -11304,7 +11297,7 @@ internal character representation.  */);
 				   "automatic conversion on decoding.");
   plist[15] = args[coding_arg_eol_type] = Qnil;
   args[coding_arg_plist] = CALLMANY (Flist, plist);
-  args[coding_arg_undecided_inhibit_null_byte_detection] = make_fixnum (0);
+  args[coding_arg_undecided_inhibit_nul_byte_detection] = make_fixnum (0);
   args[coding_arg_undecided_inhibit_iso_escape_detection] = make_fixnum (0);
   Fdefine_coding_system_internal (coding_arg_undecided_max, args);
 

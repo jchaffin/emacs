@@ -267,7 +267,7 @@ informational only.  */)
   if (!NILP (name))
     CHECK_STRING (name);
 
-  mutex = ALLOCATE_PSEUDOVECTOR (struct Lisp_Mutex, mutex, PVEC_MUTEX);
+  mutex = ALLOCATE_PSEUDOVECTOR (struct Lisp_Mutex, name, PVEC_MUTEX);
   memset ((char *) mutex + offsetof (struct Lisp_Mutex, mutex),
 	  0, sizeof (struct Lisp_Mutex) - offsetof (struct Lisp_Mutex,
 						    mutex));
@@ -386,7 +386,7 @@ informational only.  */)
   if (!NILP (name))
     CHECK_STRING (name);
 
-  condvar = ALLOCATE_PSEUDOVECTOR (struct Lisp_CondVar, cond, PVEC_CONDVAR);
+  condvar = ALLOCATE_PSEUDOVECTOR (struct Lisp_CondVar, name, PVEC_CONDVAR);
   memset ((char *) condvar + offsetof (struct Lisp_CondVar, cond),
 	  0, sizeof (struct Lisp_CondVar) - offsetof (struct Lisp_CondVar,
 						      cond));
@@ -768,9 +768,21 @@ run_thread (void *state)
   return NULL;
 }
 
+static void
+free_search_regs (struct re_registers *regs)
+{
+  if (regs->num_regs != 0)
+    {
+      xfree (regs->start);
+      xfree (regs->end);
+    }
+}
+
 void
 finalize_one_thread (struct thread_state *state)
 {
+  free_search_regs (&state->m_search_regs);
+  free_search_regs (&state->m_saved_search_regs);
   sys_cond_destroy (&state->thread_condvar);
 }
 
@@ -793,7 +805,7 @@ If NAME is given, it must be a string; it names the new thread.  */)
   if (!NILP (name))
     CHECK_STRING (name);
 
-  new_thread = ALLOCATE_PSEUDOVECTOR (struct thread_state, m_stack_bottom,
+  new_thread = ALLOCATE_PSEUDOVECTOR (struct thread_state, event_object,
 				      PVEC_THREAD);
   memset ((char *) new_thread + offset, 0,
 	  sizeof (struct thread_state) - offset);
@@ -1052,7 +1064,7 @@ static void
 init_main_thread (void)
 {
   main_thread.s.header.size
-    = PSEUDOVECSIZE (struct thread_state, m_stack_bottom);
+    = PSEUDOVECSIZE (struct thread_state, event_object);
   XSETPVECTYPE (&main_thread.s, PVEC_THREAD);
   main_thread.s.m_last_thing_searched = Qnil;
   main_thread.s.m_saved_last_thing_searched = Qnil;

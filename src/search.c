@@ -59,31 +59,6 @@ static struct regexp_cache searchbufs[REGEXP_CACHE_SIZE];
 /* The head of the linked list; points to the most recently used buffer.  */
 static struct regexp_cache *searchbuf_head;
 
-
-/* Every call to re_search, etc., must pass &search_regs as the regs
-   argument unless you can show it is unnecessary (i.e., if re_search
-   is certainly going to be called again before region-around-match
-   can be called).
-
-   Since the registers are now dynamically allocated, we need to make
-   sure not to refer to the Nth register before checking that it has
-   been allocated by checking search_regs.num_regs.
-
-   The regex code keeps track of whether it has allocated the search
-   buffer using bits in the re_pattern_buffer.  This means that whenever
-   you compile a new pattern, it completely forgets whether it has
-   allocated any registers, and will allocate new registers the next
-   time you call a searching or matching function.  Therefore, we need
-   to call re_set_registers after compiling a new pattern or after
-   setting the match registers, so that the regex functions will be
-   able to free or re-allocate it properly.  */
-/* static struct re_registers search_regs; */
-
-/* The buffer in which the last search was performed, or
-   Qt if the last search was done in a string;
-   Qnil if no searching has been done yet.  */
-/* static Lisp_Object last_thing_searched; */
-
 static void set_search_regs (ptrdiff_t, ptrdiff_t);
 static void save_search_regs (void);
 static EMACS_INT simple_search (EMACS_INT, unsigned char *, ptrdiff_t,
@@ -223,11 +198,13 @@ static struct regexp_cache *
 compile_pattern (Lisp_Object pattern, struct re_registers *regp,
 		 Lisp_Object translate, bool posix, bool multibyte)
 {
-  struct regexp_cache *cp, **cpp;
+  struct regexp_cache *cp, **cpp, **lru_nonbusy;
 
-  for (cpp = &searchbuf_head; ; cpp = &cp->next)
+  for (cpp = &searchbuf_head, lru_nonbusy = NULL; ; cpp = &cp->next)
     {
       cp = *cpp;
+      if (!cp->busy)
+        lru_nonbusy = cpp;
       /* Entries are initialized to nil, and may be set to nil by
 	 compile_pattern_1 if the pattern isn't valid.  Don't apply
 	 string accessors in those cases.  However, compile_pattern_1
@@ -247,13 +224,14 @@ compile_pattern (Lisp_Object pattern, struct re_registers *regp,
 	  && cp->buf.charset_unibyte == charset_unibyte)
 	break;
 
-      /* If we're at the end of the cache, compile into the nil cell
-	 we found, or the last (least recently used) cell with a
-	 string value.  */
+      /* If we're at the end of the cache, compile into the last
+	 (least recently used) non-busy cell in the cache.  */
       if (cp->next == 0)
 	{
-          if (cp->busy)
+          if (!lru_nonbusy)
             error ("Too much matching reentrancy");
+          cpp = lru_nonbusy;
+          cp = *cpp;
 	compile_it:
           eassert (!cp->busy);
 	  compile_pattern_1 (cp, pattern, translate, posix);
@@ -341,7 +319,10 @@ looking_at_1 (Lisp_Object string, bool posix)
 		  ZV_BYTE - BEGV_BYTE);
 
   if (i == -2)
-    matcher_overflow ();
+    {
+      unbind_to (count, Qnil);
+      matcher_overflow ();
+    }
 
   val = (i >= 0 ? Qt : Qnil);
   if (preserve_match_data && i >= 0)
@@ -1220,6 +1201,7 @@ search_buffer_re (Lisp_Object string, ptrdiff_t pos, ptrdiff_t pos_byte,
                          pos_byte - BEGV_BYTE);
       if (val == -2)
         {
+          unbind_to (count, Qnil);
           matcher_overflow ();
         }
       if (val >= 0)
@@ -1265,6 +1247,7 @@ search_buffer_re (Lisp_Object string, ptrdiff_t pos, ptrdiff_t pos_byte,
                          lim_byte - BEGV_BYTE);
       if (val == -2)
         {
+          unbind_to (count, Qnil);
           matcher_overflow ();
         }
       if (val >= 0)
@@ -2763,7 +2746,7 @@ since only regular expressions have distinguished subexpressions.  */)
      error out since otherwise this will result in confusing bugs.  */
   ptrdiff_t sub_start = search_regs.start[sub];
   ptrdiff_t sub_end = search_regs.end[sub];
-  unsigned  num_regs = search_regs.num_regs;
+  ptrdiff_t num_regs = search_regs.num_regs;
   newpoint = search_regs.start[sub] + SCHARS (newtext);
 
   /* Replace the old text with the new in the cleanest possible way.  */
@@ -3079,29 +3062,19 @@ If optional arg RESEAT is non-nil, make markers on LIST point nowhere.  */)
   return Qnil;
 }
 
-/* If true the match data have been saved in saved_search_regs
-   during the execution of a sentinel or filter. */
-/* static bool search_regs_saved; */
-/* static struct re_registers saved_search_regs; */
-/* static Lisp_Object saved_last_thing_searched; */
-
 /* Called from Flooking_at, Fstring_match, search_buffer, Fstore_match_data
    if asynchronous code (filter or sentinel) is running. */
 static void
 save_search_regs (void)
 {
-  if (!search_regs_saved)
+  if (saved_search_regs.num_regs == 0)
     {
-      saved_search_regs.num_regs = search_regs.num_regs;
-      saved_search_regs.start = search_regs.start;
-      saved_search_regs.end = search_regs.end;
+      saved_search_regs = search_regs;
       saved_last_thing_searched = last_thing_searched;
       last_thing_searched = Qnil;
       search_regs.num_regs = 0;
       search_regs.start = 0;
       search_regs.end = 0;
-
-      search_regs_saved = 1;
     }
 }
 
@@ -3109,19 +3082,17 @@ save_search_regs (void)
 void
 restore_search_regs (void)
 {
-  if (search_regs_saved)
+  if (saved_search_regs.num_regs != 0)
     {
       if (search_regs.num_regs > 0)
 	{
 	  xfree (search_regs.start);
 	  xfree (search_regs.end);
 	}
-      search_regs.num_regs = saved_search_regs.num_regs;
-      search_regs.start = saved_search_regs.start;
-      search_regs.end = saved_search_regs.end;
+      search_regs = saved_search_regs;
       last_thing_searched = saved_last_thing_searched;
       saved_last_thing_searched = Qnil;
-      search_regs_saved = 0;
+      saved_search_regs.num_regs = 0;
     }
 }
 

@@ -40,10 +40,6 @@ along with GNU Emacs.  If not, see <https://www.gnu.org/licenses/>.  */
 # define CACHEABLE /* empty */
 #endif
 
-/* Chain of condition and catch handlers currently in effect.  */
-
-/* struct handler *handlerlist; */
-
 /* Non-nil means record all fset's and provide's, to be undone
    if the file being autoloaded is not fully loaded.
    They are recorded by being consed onto the front of Vautoload_queue:
@@ -247,8 +243,6 @@ init_eval_once_for_pdumper (void)
   specpdl_size = size;
   specpdl = specpdl_ptr = pdlvec + 1;
 }
-
-/* static struct handler handlerlist_sentinel; */
 
 void
 init_eval (void)
@@ -499,17 +493,6 @@ usage: (prog1 FIRST BODY...)  */)
   Lisp_Object val = eval_sub (XCAR (args));
   prog_ignore (XCDR (args));
   return val;
-}
-
-DEFUN ("prog2", Fprog2, Sprog2, 2, UNEVALLED, 0,
-       doc: /* Eval FORM1, FORM2 and BODY sequentially; return value from FORM2.
-The value of FORM2 is saved during the evaluation of the
-remaining args, whose values are discarded.
-usage: (prog2 FORM1 FORM2 BODY...)  */)
-  (Lisp_Object args)
-{
-  eval_sub (XCAR (args));
-  return Fprog1 (XCDR (args));
 }
 
 DEFUN ("setq", Fsetq, Ssetq, 0, UNEVALLED, 0,
@@ -4225,7 +4208,6 @@ alist of active lexical bindings.  */);
   defsubr (&Scond);
   defsubr (&Sprogn);
   defsubr (&Sprog1);
-  defsubr (&Sprog2);
   defsubr (&Ssetq);
   defsubr (&Squote);
   defsubr (&Sfunction);

@@ -676,12 +676,16 @@ The optional argument PARAMETERS specifies additional frame parameters."
   "Make a frame on monitor MONITOR.
 The optional argument DISPLAY can be a display name, and the optional
 argument PARAMETERS specifies additional frame parameters."
-  (interactive (list (completing-read
-                      (format "Make frame on monitor: ")
-                      (or (delq nil (mapcar (lambda (a)
-                                              (cdr (assq 'name a)))
-                                            (display-monitor-attributes-list)))
-                          '("")))))
+  (interactive
+   (list
+    (let* ((default (cdr (assq 'name (frame-monitor-attributes)))))
+      (completing-read
+       (format "Make frame on monitor (default %s): " default)
+       (or (delq nil (mapcar (lambda (a)
+                               (cdr (assq 'name a)))
+                             (display-monitor-attributes-list)))
+           '(""))
+       nil nil nil nil default))))
   (let* ((monitor-workarea
           (catch 'done
             (dolist (a (display-monitor-attributes-list display))
@@ -970,7 +974,7 @@ recently selected windows nor the buffer list."
   (select-frame frame norecord)
   (raise-frame frame)
   ;; Ensure, if possible, that FRAME gets input focus.
-  (when (memq (window-system frame) '(x w32 ns))
+  (when (display-multi-frame-p frame)
     (x-focus-frame frame))
   ;; Move mouse cursor if necessary.
   (cond
@@ -1023,16 +1027,15 @@ that variable should be nil."
   "Do whatever is right to suspend the current frame.
 Calls `suspend-emacs' if invoked from the controlling tty device,
 `suspend-tty' from a secondary tty device, and
-`iconify-or-deiconify-frame' from an X frame."
+`iconify-or-deiconify-frame' from a graphical frame."
   (interactive)
-  (let ((type (framep (selected-frame))))
-    (cond
-     ((memq type '(x ns w32)) (iconify-or-deiconify-frame))
-     ((eq type t)
-      (if (controlling-tty-p)
-	  (suspend-emacs)
-	(suspend-tty)))
-     (t (suspend-emacs)))))
+  (cond
+   ((display-multi-frame-p) (iconify-or-deiconify-frame))
+   ((eq (framep (selected-frame)) t)
+    (if (controlling-tty-p)
+        (suspend-emacs)
+      (suspend-tty)))
+   (t (suspend-emacs))))
 
 (defun make-frame-names-alist ()
   ;; Only consider the frames on the same display.
@@ -1852,6 +1855,14 @@ for FRAME."
 
 ;;;; Frame/display capabilities.
 
+;; These functions should make the features they test explicit in
+;; their names, so that when capabilities or the corresponding Emacs
+;; features change, it will be easy to find all the tests for such
+;; capabilities by a simple text search.  See more about the history
+;; and the intent of these functions in
+;; http://lists.gnu.org/archive/html/bug-gnu-emacs/2019-04/msg00004.html
+;; or in https://debbugs.gnu.org/cgi/bugreport.cgi?bug=35058#17.
+
 (declare-function msdos-mouse-p "dosfns.c")
 
 (defun display-mouse-p (&optional display)
@@ -1902,6 +1913,7 @@ frame's display)."
        (fboundp 'image-mask-p)
        (fboundp 'image-size)))
 
+(defalias 'display-blink-cursor-p 'display-graphic-p)
 (defalias 'display-multi-frame-p 'display-graphic-p)
 (defalias 'display-multi-font-p 'display-graphic-p)
 
@@ -1922,6 +1934,16 @@ frame's display)."
       t)
      (t
       nil))))
+
+(defun display-symbol-keys-p (&optional display)
+  "Return non-nil if DISPLAY supports symbol names as keys.
+This means that, for example, DISPLAY can differentiate between
+the keybinding RET and [return]."
+  (let ((frame-type (framep-on-display display)))
+    (or (memq frame-type '(x w32 ns pc))
+        ;; MS-DOS and MS-Windows terminals have built-in support for
+        ;; function (symbol) keys
+        (memq system-type '(ms-dos windows-nt)))))
 
 (declare-function x-display-screens "xfns.c" (&optional terminal))
 
@@ -2079,7 +2101,7 @@ If DISPLAY is omitted or nil, it defaults to the selected frame's display."
      ((eq frame-type 'pc)
       4)
      (t
-      (truncate (log (length (tty-color-alist)) 2))))))
+      (logb (length (tty-color-alist)))))))
 
 (declare-function x-display-color-cells "xfns.c" (&optional terminal))
 
@@ -2542,7 +2564,7 @@ terminals, cursor blinking is controlled by the terminal."
   :init-value (not (or noninteractive
 		       no-blinking-cursor
 		       (eq system-type 'ms-dos)
-		       (not (memq window-system '(x w32 ns)))))
+		       (not (display-blink-cursor-p))))
   :initialize 'custom-initialize-delay
   :group 'cursor
   :global t

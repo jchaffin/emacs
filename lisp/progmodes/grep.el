@@ -459,7 +459,7 @@ abbreviated part can also be toggled with
      ;; remove match from grep-regexp-alist before fontifying
      ("^Grep[/a-zA-Z]* started.*"
       (0 '(face nil compilation-message nil help-echo nil mouse-face nil) t))
-     ("^Grep[/a-zA-Z]* finished with \\(?:\\(\\(?:[0-9]+ \\)?matches found\\)\\|\\(no matches found\\)\\).*"
+     ("^Grep[/a-zA-Z]* finished with \\(?:\\(\\(?:[0-9]+ \\)?match\\(?:es\\)? found\\)\\|\\(no matches found\\)\\).*"
       (0 '(face nil compilation-message nil help-echo nil mouse-face nil) t)
       (1 compilation-info-face nil t)
       (2 compilation-warning-face nil t))
@@ -552,7 +552,10 @@ Set up `compilation-exit-message-function' and run `grep-setup-hook'."
       ;; so the buffer is still unmodified if there is no output.
       (cond ((and (zerop code) (buffer-modified-p))
 	     (if (> grep-num-matches-found 0)
-                 (cons (format "finished with %d matches found\n" grep-num-matches-found)
+                 (cons (format (ngettext "finished with %d match found\n"
+                                         "finished with %d matches found\n"
+                                         grep-num-matches-found)
+                               grep-num-matches-found)
                        "matched")
                '("finished with matches found\n" . "matched")))
 	    ((not (buffer-modified-p))
@@ -956,8 +959,16 @@ substitution string.  Note dynamic scoping of variables.")
 The pattern can include shell wildcards.  As whitespace triggers
 completion when entering a pattern, including it requires
 quoting, e.g. `\\[quoted-insert]<space>'."
-  (let* ((bn (or (buffer-file-name)
-		 (replace-regexp-in-string "<[0-9]+>\\'" "" (buffer-name))))
+  (let* ((grep-read-files-function (get major-mode 'grep-read-files))
+	 (file-name-at-point
+	   (run-hook-with-args-until-success 'file-name-at-point-functions))
+	 (bn (if grep-read-files-function
+		 (funcall grep-read-files-function)
+	       (or (if (and (stringp file-name-at-point)
+			    (not (file-directory-p file-name-at-point)))
+		       file-name-at-point)
+		   (buffer-file-name)
+		   (replace-regexp-in-string "<[0-9]+>\\'" "" (buffer-name)))))
 	 (fn (and bn
 		  (stringp bn)
 		  (file-name-nondirectory bn)))

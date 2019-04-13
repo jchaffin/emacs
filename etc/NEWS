@@ -37,6 +37,12 @@ functions 'json-serialize', 'json-insert', 'json-parse-string', and
 'json-parse-buffer' are typically much faster than their Lisp
 counterparts from json.el.
 
+** Several configure options now accept an option-argument 'ifavailable'.
+For example, './configure --with-xpm=ifavailable' now configures Emacs
+to attempt to use libxpm but to continue building even if libxpm is absent.
+The other affected options are --with-gif, --with-gnutls, --with-jpeg,
+--with-png, and --with-tiff.
+
 ** The etags program now uses the C library's regular expression matcher
 when possible, and a compatible regex substitute otherwise.  This will
 let developers maintain Emacs's own regex code without having to also
@@ -77,6 +83,11 @@ its data directory at startup, and loads the dumped state from there.
 The new command-line argument '--dump-file=FILE' allows to specify a
 non-default '.pdmp' file to load the state from; see the node "Initial
 Options" in the Emacs manual for more information.
+
++++
+** The new configure option '--enable-checking=structs' attempts to
+check that the portable dumper code has been updated to match the last
+change to one of the data structures that it relies on.
 
 
 * Startup Changes in Emacs 27.1
@@ -297,6 +308,10 @@ and directory-local variables.
 'with-connection-local-profiles'.  No argument 'profiles' needed any
 longer.
 
+---
+** next-error-verbosity controls when `next-error' outputs a message
+   about the error locus.
+
 
 * Editing Changes in Emacs 27.1
 
@@ -370,8 +385,22 @@ region using a given replacement-function in a non-destructive manner
 arguments mitigating performance issues when operating on huge
 buffers.
 
+** The command 'delete-indentation' now operates on the active region.
+If the region is active, the command joins all the lines in the
+region.  When there's no active region, the command works on the
+current and the previous or the next line, as before.
+
++++
 
 * Changes in Specialized Modes and Packages in Emacs 27.1
+
+** compile.el
+---
+*** In compilation-error-regexp-alist, 'line' (and 'end-line') can be functions
+
+** cl-lib
++++
+*** cl-defstruct has a new :noinline argument to prevent inlining its functions
 
 ** doc-view-mode
 *** New commands doc-view-presentation and doc-view-fit-window-to-page
@@ -389,6 +418,9 @@ buffers.
 ** seq.el
 New convenience functions 'seq-first' and 'seq-rest' give easy access
 to respectively the first and all but the first elements of sequences.
+
+The new predicate function 'seq-contains-p' should be used instead of
+the now obsolete 'seq-contains'.
 
 ---
 ** Follow mode
@@ -495,6 +527,10 @@ and compares their entire trees.
 
 *** New user option 'vc-hg-revert-switches' specifies switches to pass
 to hg revert.
+
+*** 'C-x v M D' ('vc-diff-mergebase') and 'C-x v M L' ('vc-log-mergebase')
+print diffs and logs between the merge base (common ancestor) of two
+given revisions.
 
 ** Diff mode
 +++
@@ -662,6 +698,10 @@ mouse click event, and is intended to be bound to a mouse event.
 Previously, setting 'xref-marker-ring-length' would only take effect
 if set before 'xref.el' was loaded.
 
+---
+*** xref-find-definitions now sets the mark at the buffer position
+where it was invoked
+
 ** Ecomplete
 
 *** The ecomplete sorting has changed to a decay-based algorithm.
@@ -805,6 +845,9 @@ The maximum level is used by default; customize
 directories in the destination.
 
 ** Help
+
+---
+*** Description of variables and functions give an estimated first release
 
 ---
 *** Output format of 'C-h l' ('view-lossage') has changed.
@@ -984,6 +1027,11 @@ This means that pressing 'C-M-SPACE' now selects the entire tree by
 default, and not just the opening element.
 
 ** Eshell
+
+*** TAB completion uses the standard completion-at-point rather than pcomplete
+Its UI is slightly different but can be customized to behave similarly,
+e.g. Pcomplete's default cycling can be obtained with
+(setq completion-cycle-threshold 5).
 
 ---
 *** Expansion of history event designators is disabled by default.
@@ -1194,16 +1242,110 @@ the 128...255 range, as expected.
 This allows to create and parent immediately a minibuffer-only child
 frame when making a frame.
 
+---
+*** New predicates 'display-blink-cursor-p' and 'display-symbol-keys-p'.
+These predicates are to be preferred over 'display-graphic-p' when
+testing for blinking cursor capability and the capability to have
+symbols (e.g., [return], [tab], [backspace]) as keys respectively.
+
 ** Tabulated List mode
 
 +++
-** New user options for tabulated list sort indicators.
+*** New user options for tabulated list sort indicators.
 You can now customize which sorting indicator character to display
 near the current column in Tabulated Lists (see variables
 'tabulated-list-gui-sort-indicator-asc',
 'tabulated-list-gui-sort-indicator-desc',
 'tabulated-list-tty-sort-indicator-asc', and
 'tabulated-list-tty-sort-indicator-desc').
+
+** Text mode
+
++++
+*** 'text-mode-variant' is now obsolete, use 'derived-mode-p' instead.
+
+** CUA mode
+
+---
+*** New defcustom 'cua-rectangle-terminal-modifier-key'.
+This defcustom allows for the customization of the modifier key used
+in a terminal frame.
+
+** JS mode
+
+---
+*** JSX syntax is now automatically detected and enabled.
+If a file imports Facebook's 'React' library, or if the file uses the
+extension '.jsx', then various features supporting XML-like syntax
+will be supported in 'js-mode' and derivative modes.  ('js-jsx-mode'
+no longer needs to be enabled.)
+
+---
+*** New defcustom 'js-jsx-detect-syntax' disables automatic detection.
+This is turned on by default.
+
+---
+*** New defcustom 'js-jsx-syntax' enables JSX syntax unconditionally.
+This is off by default.
+
+---
+*** New variable 'js-jsx-regexps' controls JSX detection.
+
+---
+*** JSX syntax is now highlighted like SGML.
+
+---
+*** JSX code is properly indented in many more scenarios.
+Previously, JSX indentation usually only worked when an element was
+wrapped in parenthesis (e.g. in a 'return' statement or a function
+call).  It would also fail in many intricate cases.  Now, indentation
+should work anywhere without parenthesis; many more intricacies are
+supported; and, indentation conventions align more closely with those
+of the React developer community (see 'js-jsx-align->-with-<'),
+otherwise still adhering to SGML conventions.
+
+---
+*** New defcustom 'js-jsx-align->-with-<' controls '>' indents.
+Commonly in JSX code, a '>' on its own line is indented at the same
+level as its opening '<'.  This is the new default for JSX.  This
+behavior is slightly different than that used by SGML in Emacs, where
+'>' is indented at the same level as attributes, which was also the
+old default for JSX.
+
+This is turned on by default.  To get back the old default indentation
+behavior of aligning '>' with attributes, set 'js-jsx-align->-with-<'
+to nil.
+
+---
+*** Indentation uses 'js-indent-level' instead of 'sgml-basic-offset'.
+Since JSX is a syntax extension of JavaScript, it makes the most sense
+for JSX expressions to be indented the same number of spaces as other
+JS expressions.  This is a breaking change, but it probably aligns
+with how you'd expect this indentation to behave.  If you want JSX to
+be indented like JS, you won't need to change your config.
+
+The old behavior can be emulated by controlling JSX indentation
+independently of JS, by setting 'js-jsx-indent-level'.
+
+---
+*** New defcustom 'js-jsx-indent-level' for different JSX indentation.
+If you wish to indent JSX by a different number of spaces than JS, set
+this variable to the desired number.
+
+---
+*** New defcustom 'js-jsx-attribute-offset' for JSX attribute indents.
+
+---
+*** New variable 'js-syntactic-mode-name' controls mode name display.
+Previously, the mode name was simply 'JavaScript'.  Now, when a syntax
+extension like JSX is enabled, the mode name is 'JavaScript[JSX]'.
+Set this variable to nil to disable the new behavior.
+
+---
+*** New function 'js-use-syntactic-mode-name' for deriving modes.
+Packages deriving from 'js-mode' with 'define-derived-mode' should
+call this function to add enabled syntax extensions to their mode
+name, too.
 
 
 * New Modes and Packages in Emacs 27.1
@@ -1234,6 +1376,9 @@ documentation of the new mode and its commands.
 
 
 * Incompatible Lisp Changes in Emacs 27.1
+
+** In compilation-error-regexp-alist the old undocumented feature where 'line'
+could be a function of 2 arguments has been dropped.
 
 ** 'define-fringe-bitmap' is always defined, even when Emacs is built
 without any GUI support.
@@ -1343,8 +1488,28 @@ ending character were silently omitted.
 For example, '(rx (any "@z-a" (?9 . ?0)))' would match '@' only.
 Now, such rx expressions generate an error.
 
++++
+** 'text-mode' no longer sets the value of 'indent-line-function'.
+The global value of 'indent-line-function', which defaults to
+'indent-relative', will no longer be reset locally when turning on
+'text-mode'.
+
+To get back the old behavior, add a function to 'text-mode-hook' which
+performs (setq-local indent-line-function #'indent-relative).
+
 
 * Lisp Changes in Emacs 27.1
+
+** New 'help-fns-describe-variable-functions' hook.
+Makes it possible to add metadata information to describe-variable.
+
+** i18n (internationalization)
+
+*** ngettext can be used now to return the right plural form
+according to the given numeric value.
+
++++
+** inhibit-null-byte-detection is renamed to inhibit-nul-byte-detection
 
 +++
 ** 'self-insert-command' takes the char to insert as (optional) argument.
@@ -1618,6 +1783,12 @@ are implemented in C using the Jansson library.
 and 'flatten' it such that the result is a list of all the terminal
 nodes.
 
++++
+** 'zlib-decompress-region' can partially decompress corrupted data.
+If the new optional ALLOW-PARTIAL argument is passed, then the data
+that was decompressed successfully before failing will be inserted
+into the buffer.
+
 ** Mailcap
 
 ---
@@ -1682,9 +1853,9 @@ the process.  That way 'make-process' can start remote processes.
 +++
 ** Emacs now supports resizing (scaling) of images without ImageMagick.
 All modern systems are supported by this feature.  (On GNU and Unix
-systems, the XRender extension to X11 is required for this to be
-available; the configure script will test for it and, if found, enable
-scaling.)
+systems, Cairo drawing or the XRender extension to X11 is required for
+this to be available; the configure script will test for it and, if
+found, enable scaling.)
 
 The new function 'image-scaling-p' can be used to test whether any
 given frame supports resizing.

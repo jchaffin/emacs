@@ -82,7 +82,7 @@ enum define_coding_ccl_arg_index
 
 enum define_coding_undecided_arg_index
   {
-    coding_arg_undecided_inhibit_null_byte_detection = coding_arg_max,
+    coding_arg_undecided_inhibit_nul_byte_detection = coding_arg_max,
     coding_arg_undecided_inhibit_iso_escape_detection,
     coding_arg_undecided_prefer_utf_8,
     coding_arg_undecided_max
@@ -97,6 +97,8 @@ enum define_coding_undecided_arg_index
 
 extern Lisp_Object Vcoding_system_hash_table;
 
+/* Name (or base name) of work buffer for code conversion.  */
+extern Lisp_Object Vcode_conversion_workbuf_name;
 
 /* Enumeration of index to an attribute vector of a coding system.  */
 
@@ -137,7 +139,7 @@ enum coding_attr_index
 
     coding_attr_emacs_mule_full,
 
-    coding_attr_undecided_inhibit_null_byte_detection,
+    coding_attr_undecided_inhibit_nul_byte_detection,
     coding_attr_undecided_inhibit_iso_escape_detection,
     coding_attr_undecided_prefer_utf_8,
 
@@ -351,7 +353,7 @@ struct emacs_mule_spec
 
 struct undecided_spec
 {
-  /* Inhibit null byte detection.  1 means always inhibit,
+  /* Inhibit NUL byte detection.  1 means always inhibit,
      -1 means do not inhibit, 0 means rely on user variable.  */
   int inhibit_nbd;
 

@@ -2801,14 +2801,14 @@ for all methods.  Resulting data are derived from default settings."
 	 :port method :require '(:port) :max most-positive-fixnum))))
 
 ;; Generic function.
-(defun tramp-parse-group (regexp match-level skip-regexp)
+(defun tramp-parse-group (regexp match-level skip-chars)
    "Return a (user host) tuple allowed to access.
 User is always nil."
    (let (result)
      (when (re-search-forward regexp (point-at-eol) t)
        (setq result (list nil (match-string match-level))))
      (or
-      (> (skip-chars-forward skip-regexp) 0)
+      (> (skip-chars-forward skip-chars) 0)
       (forward-line 1))
      result))
 
@@ -2864,7 +2864,7 @@ User is always nil."
    (tramp-parse-group
     (concat "\\(?:^[ \t]*Host\\)" "\\|" "\\(?:^.+\\)"
 	    "\\|" "\\(" tramp-host-regexp "\\)")
-    1 "[ \t]+"))
+    1 " \t"))
 
 ;; Generic function.
 (defun tramp-parse-shostkeys-sknownhosts (dirname regexp)
@@ -3569,17 +3569,7 @@ support symbolic links."
   (command &optional output-buffer error-buffer)
   "Like `shell-command' for Tramp files."
   (let* ((asynchronous (string-match-p "[ \t]*&[ \t]*\\'" command))
-	 ;; We cannot use `shell-file-name' and `shell-command-switch',
-	 ;; they are variables of the local host.
-	 (args (append
-		(cons
-		 (tramp-get-method-parameter
-		  (tramp-dissect-file-name default-directory)
-		  'tramp-remote-shell)
-		 (tramp-get-method-parameter
-		  (tramp-dissect-file-name default-directory)
-		  'tramp-remote-shell-args))
-		(list (substring command 0 asynchronous))))
+	 (command (substring command 0 asynchronous))
 	 current-buffer-p
 	 (output-buffer
 	  (cond
@@ -3596,19 +3586,48 @@ support symbolic links."
 	  (cond
 	   ((bufferp error-buffer) error-buffer)
 	   ((stringp error-buffer) (get-buffer-create error-buffer))))
-	 (buffer
-	  (if (and (not asynchronous) error-buffer)
-	      (with-parsed-tramp-file-name default-directory nil
-		(list output-buffer (tramp-make-tramp-temp-file v)))
-	    output-buffer))
-	 (p (get-buffer-process output-buffer)))
+	 (bname (buffer-name output-buffer))
+	 (p (get-buffer-process output-buffer))
+	 buffer)
 
-    ;; Check whether there is another process running.  Tramp does not
-    ;; support 2 (asynchronous) processes in parallel.
+    ;; The following code is taken from `shell-command', slightly
+    ;; adapted.  Shouldn't it be factored out?
     (when p
-      (if (yes-or-no-p "A command is running.  Kill it? ")
-	  (ignore-errors (kill-process p))
-	(tramp-user-error p "Shell command in progress")))
+      (cond
+       ((eq async-shell-command-buffer 'confirm-kill-process)
+	;; If will kill a process, query first.
+	(if (yes-or-no-p
+	     "A command is running in the default buffer.  Kill it? ")
+	    (kill-process p)
+	  (tramp-user-error p "Shell command in progress")))
+       ((eq async-shell-command-buffer 'confirm-new-buffer)
+	;; If will create a new buffer, query first.
+	(if (yes-or-no-p
+	     "A command is running in the default buffer.  Use a new buffer? ")
+            (setq output-buffer (generate-new-buffer bname))
+	  (tramp-user-error p "Shell command in progress")))
+       ((eq async-shell-command-buffer 'new-buffer)
+	;; It will create a new buffer.
+        (setq output-buffer (generate-new-buffer bname)))
+       ((eq async-shell-command-buffer 'confirm-rename-buffer)
+	;; If will rename the buffer, query first.
+	(if (yes-or-no-p
+	     "A command is running in the default buffer.  Rename it? ")
+	    (progn
+	      (with-current-buffer output-buffer
+		(rename-uniquely))
+              (setq output-buffer (get-buffer-create bname)))
+	  (tramp-user-error p "Shell command in progress")))
+       ((eq async-shell-command-buffer 'rename-buffer)
+	;; It will rename the buffer.
+	(with-current-buffer output-buffer
+	  (rename-uniquely))
+        (setq output-buffer (get-buffer-create bname)))))
+
+    (setq buffer (if (and (not asynchronous) error-buffer)
+		     (with-parsed-tramp-file-name default-directory nil
+		       (list output-buffer (tramp-make-tramp-temp-file v)))
+		   output-buffer))
 
     (if current-buffer-p
 	(progn
@@ -3621,18 +3640,19 @@ support symbolic links."
     (if (and (not current-buffer-p) (integerp asynchronous))
 	(prog1
 	    ;; Run the process.
-	    (setq p (apply #'start-file-process "*Async Shell*" buffer args))
+	    (setq p (start-file-process-shell-command
+		     (buffer-name output-buffer) buffer command))
 	  ;; Display output.
 	  (with-current-buffer output-buffer
 	    (display-buffer output-buffer '(nil (allow-no-window . t)))
 	    (setq mode-line-process '(":%s"))
 	    (shell-mode)
 	    (set-process-sentinel p #'shell-command-sentinel)
-	    (set-process-filter p 'comint-output-filter)))
+	    (set-process-filter p #'comint-output-filter)))
 
       (prog1
 	  ;; Run the process.
-	  (apply #'process-file (car args) nil buffer nil (cdr args))
+	  (process-file-shell-command command nil buffer nil)
 	;; Insert error messages if they were separated.
 	(when (listp buffer)
 	  (with-current-buffer error-buffer
@@ -3861,7 +3881,7 @@ of."
       (tramp-check-for-regexp proc tramp-password-prompt-regexp)
       (tramp-message vec 3 "Sending %s" (match-string 1))
       ;; We don't call `tramp-send-string' in order to hide the
-      ;; password from the debug buffer.
+      ;; password from the debug buffer and the traces.
       (process-send-string
        proc (concat (tramp-read-passwd proc) tramp-local-end-of-line))
       ;; Hide password prompt.
@@ -4054,9 +4074,14 @@ for process communication also."
     (let ((inhibit-read-only t)
 	  last-coding-system-used
 	  ;; We do not want to run timers.
+	  (tl timer-list)
           (stimers (with-timeout-suspend))
 	  timer-list timer-idle-list
 	  result)
+      ;; Enable our progress reporter.
+      (dolist (timer tl)
+	(if (eq (timer--function timer) #'tramp-progress-reporter-update)
+            (push timer timer-list)))
       ;; JUST-THIS-ONE is set due to Bug#12145.
       (tramp-message
        proc 10 "%s %s %s %s\n%s"
@@ -4146,12 +4171,20 @@ The STRING is expected to use Unix line-endings, but the lines sent to
 the remote host use line-endings as defined in the variable
 `tramp-rsh-end-of-line'.  The communication buffer is erased before sending."
   (let* ((p (tramp-get-connection-process vec))
-	 (chunksize (tramp-get-connection-property p "chunksize" nil)))
+	 (chunksize (tramp-get-connection-property p "chunksize" nil))
+	 ;; We do not want to run timers.
+	 (tl timer-list)
+         (stimers (with-timeout-suspend))
+	 timer-list timer-idle-list)
     (unless p
       (tramp-error
        vec 'file-error "Can't send string to remote host -- not logged in"))
     (tramp-set-connection-property p "last-cmd-time" (current-time))
     (tramp-message vec 10 "%s" string)
+    ;; Enable our progress reporter.
+    (dolist (timer tl)
+      (if (eq (timer--function timer) #'tramp-progress-reporter-update)
+          (push timer timer-list)))
     (with-current-buffer (tramp-get-connection-buffer vec)
       ;; Clean up the buffer.  We cannot call `erase-buffer' because
       ;; narrowing might be in effect.
@@ -4164,17 +4197,33 @@ the remote host use line-endings as defined in the variable
 		  (string-equal (substring string -1) tramp-rsh-end-of-line))
 	(setq string (concat string tramp-rsh-end-of-line)))
       ;; Send the string.
-      (if (and chunksize (not (zerop chunksize)))
-	  (let ((pos 0)
-		(end (length string)))
-	    (while (< pos end)
-	      (tramp-message
-	       vec 10 "Sending chunk from %s to %s"
-	       pos (min (+ pos chunksize) end))
-	      (process-send-string
-	       p (substring string pos (min (+ pos chunksize) end)))
-	      (setq pos (+ pos chunksize))))
-	(process-send-string p string)))))
+      (with-local-quit
+	(if (and chunksize (not (zerop chunksize)))
+	    (let ((pos 0)
+		  (end (length string)))
+	      (while (< pos end)
+		(tramp-message
+		 vec 10 "Sending chunk from %s to %s"
+		 pos (min (+ pos chunksize) end))
+		(process-send-string
+		 p (substring string pos (min (+ pos chunksize) end)))
+		(setq pos (+ pos chunksize))))
+	  (process-send-string p string)))
+      ;; Reenable the timers.
+      (with-timeout-unsuspend stimers))))
+
+(defun tramp-process-sentinel (proc event)
+  "Flush file caches and remove shell prompt."
+  (unless (process-live-p proc)
+    (let ((vec (process-get proc 'vector))
+	  (prompt (tramp-get-connection-property proc "prompt" nil)))
+      (when vec
+	(tramp-message vec 5 "Sentinel called: `%S' `%s'" proc event)
+        (tramp-flush-connection-properties proc)
+        (tramp-flush-directory-properties vec ""))
+      (goto-char (point-max))
+      (when (and prompt (re-search-backward (regexp-quote prompt) nil t))
+	(delete-region (point) (point-max))))))
 
 (defun tramp-get-inode (vec)
   "Returns the virtual inode number.
@@ -4872,6 +4921,12 @@ Only works for Bourne-like shells."
 ;;   and friends, for most of the handlers this is the major
 ;;   difference between the different backends.  Other handlers but
 ;;   *-process-file would profit from this as well.
+;;
+;; * Get rid of `shell-command'.  In its primary implementation, it
+;;   uses `process-file-shell-command' and
+;;   `start-file-process-shell-command', which is sufficient due to
+;;   connection-local `shell-file-name'.
+
 
 ;;; tramp.el ends here
 

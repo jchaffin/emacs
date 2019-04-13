@@ -150,15 +150,6 @@ request.")
 ;; These routines will allow us to implement persistent HTTP
 ;; connections.
 (defsubst url-http-debug (&rest args)
-  (if (eq quit-flag t)
-      (let ((proc (get-buffer-process (current-buffer))))
-	;; The user hit C-g, honor it!  Some things can get in an
-	;; incredibly tight loop (chunked encoding)
-	(if proc
-	    (progn
-	      (set-process-sentinel proc nil)
-	      (set-process-filter proc nil)))
-	(error "Transfer interrupted!")))
   (apply 'url-debug 'http args))
 
 (defun url-http-mark-connection-as-busy (host port proc)
@@ -517,7 +508,7 @@ Return the number of characters removed."
   (setq url-http-response-version
 	(buffer-substring (point)
 			  (progn
-			    (skip-chars-forward "[0-9].")
+			    (skip-chars-forward "0-9.")
 			    (point))))
   (setq url-http-response-status (read (current-buffer))))
 
@@ -939,7 +930,8 @@ should be shown to the user."
     (goto-char (point-min))
     success))
 
-(declare-function zlib-decompress-region "decompress.c" (start end))
+(declare-function zlib-decompress-region "decompress.c"
+                  (start end &optional allow-partial))
 
 (defun url-handle-content-transfer-encoding ()
   (let ((encoding (mail-fetch-field "content-encoding")))
@@ -951,7 +943,7 @@ should be shown to the user."
 	(widen)
 	(goto-char (point-min))
 	(when (search-forward "\n\n")
-	  (zlib-decompress-region (point) (point-max)))))))
+	  (zlib-decompress-region (point) (point-max) t))))))
 
 ;; Miscellaneous
 (defun url-http-activate-callback ()
