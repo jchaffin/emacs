@@ -8439,6 +8439,25 @@ static struct image_keyword imagemagick_format[IMAGEMAGICK_LAST] =
     {":crop",		IMAGE_DONT_CHECK_VALUE_TYPE,		0}
   };
 
+#if defined HAVE_NTGUI && defined WINDOWSNT
+static bool init_imagemagick_functions (void);
+#else
+#define init_imagemagick_functions NULL
+#endif
+
+/* Structure describing the image type for any image handled via
+   ImageMagick.  */
+
+static struct image_type imagemagick_type =
+  {
+    SYMBOL_INDEX (Qimagemagick),
+    imagemagick_image_p,
+    imagemagick_load,
+    imagemagick_clear_image,
+    init_imagemagick_functions,
+    NULL
+  };
+
 /* Free X resources of imagemagick image IMG which is used on frame F.  */
 
 static void
