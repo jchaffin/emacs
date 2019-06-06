@@ -3,9 +3,7 @@
 ;; Copyright (C) 2007-2019 Free Software Foundation, Inc.
 
 ;; Author: Vinicius Jose Latorre <viniciusjl.gnu@gmail.com>
-;;	Kenichi Handa <handa@m17n.org> (multi-byte characters)
-;; Maintainer: Kenichi Handa <handa@m17n.org> (multi-byte characters)
-;;	Vinicius Jose Latorre <viniciusjl.gnu@gmail.com>
+;;	Kenichi Handa <handa@gnu.org> (multi-byte characters)
 ;; Keywords: wp, print, PostScript
 ;; X-URL: http://www.emacswiki.org/cgi-bin/wiki/ViniciusJoseLatorre
 ;; Package: ps-print

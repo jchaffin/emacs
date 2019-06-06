@@ -1193,7 +1193,7 @@ This can be added to `gnus-select-article-hook' or
 ;;;
 
 (defun gnus-agent-synchronize-group-flags (group actions server)
-"Update a plugged group by performing the indicated actions."
+  "Update a plugged group by performing the indicated actions."
   (let* ((gnus-command-method (gnus-server-to-method server))
 	 (info
 	  ;; This initializer is required as gnus-request-set-mark
@@ -1227,18 +1227,21 @@ This can be added to `gnus-select-article-hook' or
 		  ((memq mark '(tick))
 		   (let ((info-marks (assoc mark (gnus-info-marks info))))
 		     (unless info-marks
-		       (gnus-info-set-marks info (cons (setq info-marks (list mark)) (gnus-info-marks info))))
-		     (setcdr info-marks (funcall (if (eq what 'add)
-				  'gnus-range-add
-				'gnus-remove-from-range)
-			      (cdr info-marks)
-			      range))))))))
+                       (gnus-info-set-marks
+                        info (cons (setq info-marks (list mark))
+                                   (gnus-info-marks info))))
+                     (setcdr info-marks
+                             (funcall (if (eq what 'add)
+                                          'gnus-range-add
+                                        'gnus-remove-from-range)
+                                      (cdr info-marks)
+                                      range))))))))
 
-      ;;Marks can be synchronized at any time by simply toggling from
-      ;;unplugged to plugged.  If that is what is happening right now, make
-      ;;sure that the group buffer is up to date.
-          (when (gnus-buffer-live-p gnus-group-buffer)
-            (gnus-group-update-group group t)))
+      ;; Marks can be synchronized at any time by simply toggling from
+      ;; unplugged to plugged.  If that is what is happening right now,
+      ;; make sure that the group buffer is up to date.
+      (when (gnus-buffer-live-p gnus-group-buffer)
+        (gnus-group-update-group group t)))
     nil))
 
 (defun gnus-agent-save-active (method &optional groups-p)
@@ -2439,7 +2442,7 @@ modified) original contents, they are first saved to their own file."
           ;; Parse them and see which articles we want to fetch.
           (setq gnus-newsgroup-dependencies
                 (or gnus-newsgroup-dependencies
-                    (make-vector (length articles) 0)))
+                    (gnus-make-hashtable (length articles))))
           (setq gnus-newsgroup-headers
                 (or gnus-newsgroup-headers
                     (gnus-get-newsgroup-headers-xover articles nil nil
@@ -3929,7 +3932,7 @@ If REREAD is not nil, downloaded articles are marked as unread."
 		     (nnheader-insert-file-contents file)
 		     (nnheader-remove-body)
 		     (setq header (nnheader-parse-naked-head)))
-		   (mail-header-set-number header (car downloaded))
+		   (setf (mail-header-number header) (car downloaded))
 		   (if nov-arts
 		       (let ((key (concat "^" (int-to-string (car nov-arts))
 					  "\t")))

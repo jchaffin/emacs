@@ -1059,8 +1059,10 @@ end
 define xprintsym
   xsymname $arg0
   xgetptr $symname
-  set $sym_name = (struct Lisp_String *) $ptr
-  xprintstr $sym_name
+  if $ptr != 0
+    set $sym_name = (struct Lisp_String *) $ptr
+    xprintstr $sym_name
+  end
 end
 document xprintsym
   Print argument as a symbol.
@@ -1314,7 +1316,7 @@ if hasattr(gdb, 'printing'):
       itype = ival >> (0 if USE_LSB_TAG else VALBITS)
       itype = itype & ((1 << GCTYPEBITS) - 1)
 
-      # For a Lisp integer N, yield "make_number(N)".
+      # For a Lisp fixnum N, yield "make_fixnum(N)".
       if itype == Lisp_Int0 or itype == Lisp_Int1:
         if USE_LSB_TAG:
           ival = ival >> (GCTYPEBITS - 1)
@@ -1322,7 +1324,7 @@ if hasattr(gdb, 'printing'):
           ival = ival | (-1 << VALBITS)
         else:
           ival = ival & ((1 << VALBITS) - 1)
-        return "make_number(%d)" % ival
+        return "make_fixnum(%d)" % ival
 
       # For non-integers other than nil yield "XIL(N)", where N is a C integer.
       # This helps humans distinguish Lisp_Object values from ordinary

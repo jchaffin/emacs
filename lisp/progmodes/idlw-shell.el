@@ -2,10 +2,9 @@
 
 ;; Copyright (C) 1999-2019 Free Software Foundation, Inc.
 
-;; Authors: J.D. Smith <jdsmith@as.arizona.edu>
+;; Authors: JD Smith <jd.smith@utoledo.edu>
 ;;          Carsten Dominik <dominik@astro.uva.nl>
 ;;          Chris Chase <chase@att.com>
-;; Maintainer: J.D. Smith <jdsmith@as.arizona.edu>
 ;; Keywords: processes
 ;; Package: idlwave
 

@@ -2,7 +2,7 @@
 
 ;; Copyright (C) 1994-1995, 1997-2019 Free Software Foundation, Inc.
 
-;; Author:           Ken Stevens <k.stevens@ieee.org>
+;; Author: Ken Stevens <k.stevens@ieee.org>
 
 ;; This file is part of GNU Emacs.
 
@@ -4016,7 +4016,7 @@ You can bind this to the key C-c i in GNUS or mail by adding to
 
 (defun ispell-non-empty-string (string)
   (if (or (not string) (string-equal string ""))
-      "\\'\\`" ; An unmatchable string if string is null.
+      regexp-unmatchable
     (regexp-quote string)))
 
 

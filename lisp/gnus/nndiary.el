@@ -2,8 +2,7 @@
 
 ;; Copyright (C) 1999-2019 Free Software Foundation, Inc.
 
-;; Author:        Didier Verna <didier@xemacs.org>
-;; Maintainer:    Didier Verna <didier@xemacs.org>
+;; Author:        Didier Verna <didier@didierverna.net>
 ;; Created:       Fri Jul 16 18:55:42 1999
 ;; Keywords:      calendar mail news
 
@@ -979,7 +978,7 @@ all.  This may very well take some time.")
   "Add a nov line for the GROUP base."
   (with-current-buffer (nndiary-open-nov group)
     (goto-char (point-max))
-    (mail-header-set-number headers article)
+    (setf (mail-header-number headers) article)
     (nnheader-insert-nov headers)))
 
 (defsubst nndiary-header-value ()
@@ -994,8 +993,8 @@ all.  This may very well take some time.")
 	 (goto-char (point-min))
 	 (if (search-forward "\n\n" nil t) (1- (point)) (point-max))))
       (let ((headers (nnheader-parse-naked-head)))
-	(mail-header-set-chars headers chars)
-	(mail-header-set-number headers number)
+	(setf (mail-header-chars  headers) chars)
+	(setf (mail-header-number headers) number)
 	headers))))
 
 (defun nndiary-open-nov (group)
@@ -1016,7 +1015,7 @@ all.  This may very well take some time.")
 (defun nndiary-save-nov ()
   (save-excursion
     (while nndiary-nov-buffer-alist
-      (when (buffer-name (cdar nndiary-nov-buffer-alist))
+      (when (buffer-live-p (cdar nndiary-nov-buffer-alist))
 	(set-buffer (cdar nndiary-nov-buffer-alist))
 	(when (buffer-modified-p)
 	  (nnmail-write-region 1 (point-max) nndiary-nov-buffer-file-name

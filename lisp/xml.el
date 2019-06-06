@@ -2,7 +2,7 @@
 
 ;; Copyright (C) 2000-2019 Free Software Foundation, Inc.
 
-;; Author: Emmanuel Briot  <briot@gnat.com>
+;; Author: Emmanuel Briot <briot@gnat.com>
 ;; Maintainer: Mark A. Hershberger <mah@everybody.org>
 ;; Keywords: xml, data
 
@@ -245,7 +245,6 @@ See also `xml-get-attribute-or-nil'."
 ;; [54] AttType    ::= StringType | TokenizedType | EnumeratedType
 ;; [55] StringType ::= 'CDATA'
 (defconst xml-att-type-re (concat "\\(?:CDATA\\|" xml-tokenized-type-re
-				  "\\|" xml-notation-type-re
 				  "\\|" xml-enumerated-type-re "\\)"))
 
 ;; [60] DefaultDecl ::= '#REQUIRED' | '#IMPLIED' | (('#FIXED' S)? AttValue)

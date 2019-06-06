@@ -223,6 +223,7 @@
 ;; Simen Heggestøyl <simenheg@gmail.com> -- Postgres database completion
 ;; Robert Cochran <robert-emacs@cochranmail.com> -- MariaDB support
 ;; Alex Harsanyi <alexharsanyi@gmail.com> -- sql-indent package and support
+;; Roy Mathew <rmathew8@gmail.com> -- bug in `sql-send-string'
 ;;
 
 
@@ -442,6 +443,7 @@ file.  Since that is a plaintext file, this could be dangerous."
      :sqli-login sql-ms-login-params
      :sqli-comint-func sql-comint-ms
      :prompt-regexp "^[0-9]*>"
+     :prompt-cont-regexp "^[0-9]*>"
      :prompt-length 5
      :syntax-alist ((?@ . "_"))
      :terminator ("^go" . "go"))
@@ -477,7 +479,7 @@ file.  Since that is a plaintext file, this could be dangerous."
      :prompt-cont-regexp "^\\(?:[ ][ ][1-9]\\|[ ][1-9][0-9]\\|[1-9][0-9]\\{2\\}\\)[ ]\\{2\\}"
      :statement sql-oracle-statement-starters
      :syntax-alist ((?$ . "_") (?# . "_"))
-     :terminator ("\\(^/\\|;\\)$" . "/")
+     :terminator ("\\(^/\\|;\\)" . "/")
      :input-filter sql-placeholders-filter)
 
     (postgres
@@ -495,7 +497,7 @@ file.  Since that is a plaintext file, this could be dangerous."
      :prompt-length 5
      :prompt-cont-regexp "^[[:alnum:]_]*[-(][#>] "
      :input-filter sql-remove-tabs-filter
-     :terminator ("\\(^\\s-*\\\\g$\\|;\\)" . "\\g"))
+     :terminator ("\\(^\\s-*\\\\g\\|;\\)" . "\\g"))
 
     (solid
      :name "Solid"
@@ -520,8 +522,7 @@ file.  Since that is a plaintext file, this could be dangerous."
      :completion-object sql-sqlite-completion-object
      :prompt-regexp "^sqlite> "
      :prompt-length 8
-     :prompt-cont-regexp "^   \\.\\.\\.> "
-     :terminator ";")
+     :prompt-cont-regexp "^   \\.\\.\\.> ")
 
     (sybase
      :name "Sybase"
@@ -1219,6 +1220,11 @@ Starts `sql-interactive-mode' after doing some setup."
 
 ;; Customization for Microsoft
 
+;; Microsoft documentation seems to indicate that ISQL and OSQL are
+;; going away and being replaced by SQLCMD.  If anyone has experience
+;; using SQLCMD, modified product configuration and feedback on its
+;; use would be greatly appreciated.
+
 (defcustom sql-ms-program "osql"
   "Command to start osql by Microsoft.
 
@@ -1416,6 +1422,15 @@ specified, it's `sql-product' or `sql-connection' must match."
                 (or (not connection)
                     (and (stringp connection)
                          (string= connection sql-connection))))))))
+
+(defun sql-is-sqli-buffer-p (buffer)
+  "Return non-nil if buffer is a SQLi buffer."
+  (when buffer
+    (setq buffer (get-buffer buffer))
+    (and buffer
+         (buffer-live-p buffer)
+         (with-current-buffer buffer
+           (derived-mode-p 'sql-interactive-mode)))))
 
 ;; Keymap for sql-interactive-mode.
 
@@ -3544,24 +3559,29 @@ server/database name."
   "Generate a new, unique buffer name for a SQLi buffer.
 
 Append a sequence number until a unique name is found."
-  (let ((base-name (when (stringp base)
-                     (substring-no-properties
-                      (or base
-                          (sql-get-product-feature product :name)
+  (let ((base-name (substring-no-properties
+                    (if base
+                        (if (stringp base)
+                            base
+                          (format "%S" base))
+                      (or (sql-get-product-feature product :name)
                           (symbol-name product)))))
-        buf-fmt-1st buf-fmt-rest)
+        buf-fmt-1st
+        buf-fmt-rest)
 
     ;; Calculate buffer format
-    (if base-name
-        (setq buf-fmt-1st  (format "*SQL: %s*" base-name)
-              buf-fmt-rest (format "*SQL: %s-%%d*" base-name))
-      (setq buf-fmt-1st  "*SQL*"
-            buf-fmt-rest "*SQL-%d*"))
+    (if (string-blank-p base-name)
+        (setq buf-fmt-1st  "*SQL*"
+              buf-fmt-rest "*SQL-%d*")
+      (setq buf-fmt-1st  (format "*SQL: %s*" base-name)
+            buf-fmt-rest (format "*SQL: %s-%%d*" base-name)))
 
     ;; See if we can find an unused buffer
     (let ((buf-name buf-fmt-1st)
           (i 1))
-      (while (sql-buffer-live-p buf-name)
+      (while (if (sql-is-sqli-buffer-p buf-name)
+                 (comint-check-proc buf-name)
+               (buffer-live-p (get-buffer buf-name)))
         ;; Check a sequence number on the BASE
         (setq buf-name (format buf-fmt-rest i)
               i (1+ i)))
@@ -3640,12 +3660,16 @@ Inserts SELECT or commas if appropriate."
 Placeholders are words starting with an ampersand like &this."
 
   (when sql-oracle-scan-on
-    (while (string-match "&?&\\(\\(?:\\sw\\|\\s_\\)+\\)[.]?" string)
-      (setq string (replace-match
-		    (read-from-minibuffer
-		     (format "Enter value for %s: " (match-string 1 string))
-		     nil nil nil 'sql-placeholder-history)
-		    t t string))))
+    (let ((start 0)
+          (replacement ""))
+      (while (string-match "&?&\\(\\(?:\\sw\\|\\s_\\)+\\)[.]?" string start)
+        (setq replacement (read-from-minibuffer
+		           (format "Enter value for %s: "
+                                   (propertize (match-string 1 string)
+                                               'face 'font-lock-variable-name-face))
+		           nil nil nil 'sql-placeholder-history)
+              string (replace-match replacement t t string)
+              start (+ (match-beginning 1) (length replacement))))))
   string)
 
 ;; Using DB2 interactively, newlines must be escaped with " \".
@@ -3742,7 +3766,8 @@ to avoid deleting non-prompt output."
              (or (> (length (or sql-preoutput-hold "")) 0)
                  (> (or sql-output-newline-count 0) 0)
                  (not (or (string-match sql-prompt-regexp oline)
-                          (string-match sql-prompt-cont-regexp oline)))))
+                          (and sql-prompt-cont-regexp
+                               (string-match sql-prompt-cont-regexp oline))))))
 
     (save-match-data
       (let (prompt-found last-nl)
@@ -3794,6 +3819,8 @@ to avoid deleting non-prompt output."
   oline)
 
 ;;; Sending the region to the SQLi buffer.
+(defvar sql-debug-send nil
+  "Display text sent to SQL process pragmatically.")
 
 (defun sql-send-string (str)
   "Send the string STR to the SQL process."
@@ -3807,12 +3834,14 @@ to avoid deleting non-prompt output."
 	  (save-excursion
 	    ;; Set product context
 	    (with-current-buffer sql-buffer
+              (when sql-debug-send
+                (message ">>SQL> %S" s))
+
 	      ;; Send the string (trim the trailing whitespace)
-	      (sql-input-sender (get-buffer-process sql-buffer) s)
+	      (sql-input-sender (get-buffer-process (current-buffer)) s)
 
 	      ;; Send a command terminator if we must
-	      (when sql-send-terminator
-		(sql-send-magic-terminator sql-buffer s sql-send-terminator))
+	      (sql-send-magic-terminator sql-buffer s sql-send-terminator)
 
               (when sql-pop-to-buffer-after-send-region
 	        (message "Sent string to buffer %s" sql-buffer))))
@@ -3874,12 +3903,8 @@ to avoid deleting non-prompt output."
 
     ;; Check to see if the pattern is present in the str already sent
     (unless (and pat term
-		 (string-match (concat pat "\\'") str))
-      (comint-simple-send (get-buffer-process buf) term)
-      (setq sql-output-newline-count
-            (if sql-output-newline-count
-                (1+ sql-output-newline-count)
-              1)))))
+		 (string-match-p (concat pat "\\'") str))
+      (sql-input-sender (get-buffer-process buf) term))))
 
 (defun sql-remove-tabs-filter (str)
   "Replace tab characters with spaces."
@@ -4390,12 +4415,12 @@ you entered, right above the output it created.
   ;; Set comint based on user overrides.
   (setq comint-prompt-regexp
         (if sql-prompt-cont-regexp
-            (concat "\\(" sql-prompt-regexp
-                    "\\|" sql-prompt-cont-regexp "\\)")
+            (concat "\\(?:\\(?:" sql-prompt-regexp "\\)"
+                    "\\|\\(?:" sql-prompt-cont-regexp "\\)\\)")
           sql-prompt-regexp))
   (setq left-margin (or sql-prompt-length 0))
   ;; Install input sender
-  (set (make-local-variable 'comint-input-sender) 'sql-input-sender)
+  (set (make-local-variable 'comint-input-sender) #'sql-input-sender)
   ;; People wanting a different history file for each
   ;; buffer/process/client/whatever can change separator and file-name
   ;; on the sql-interactive-mode-hook.
@@ -4659,13 +4684,13 @@ the call to \\[sql-product-interactive] with
                             (read-string
                              "Buffer name (\"*SQL: XXX*\"; enter `XXX'): "
                              (sql-make-alternate-buffer-name product))))
-                          ((or (string-prefix-p " " new-name)
-                               (string-match-p "\\`[*].*[*]\\'" new-name))
-                           new-name)
                           ((stringp new-name)
-                           (sql-generate-unique-sqli-buffer-name product new-name))
+                           (if (or (string-prefix-p " " new-name)
+                                   (string-match-p "\\`[*].*[*]\\'" new-name))
+                               new-name
+                             (sql-generate-unique-sqli-buffer-name product new-name)))
                           (t
-                           (sql-generate-unique-sqli-buffer-name product nil)))))
+                           (sql-generate-unique-sqli-buffer-name product new-name)))))
 
               ;; Set SQLi mode.
               (let ((sql-interactive-product product))

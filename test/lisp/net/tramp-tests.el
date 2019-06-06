@@ -41,6 +41,7 @@
 
 ;;; Code:
 
+(require 'cl-lib)
 (require 'dired)
 (require 'ert)
 (require 'ert-x)
@@ -175,10 +176,9 @@ properly.  BODY shall not contain a timeout."
 	 (let ((tramp--test-instrument-test-case-p t)) ,@body)
        ;; Unwind forms.
        (when (and (null tramp--test-instrument-test-case-p) (> tramp-verbose 3))
-	 (with-parsed-tramp-file-name tramp-test-temporary-file-directory nil
-	   (with-current-buffer (tramp-get-connection-buffer v)
-	     (message "%s" (buffer-string)))
-	   (with-current-buffer (tramp-get-debug-buffer v)
+	 (dolist (buf (tramp-list-tramp-buffers))
+	   (message ";; %s" buf)
+	   (with-current-buffer buf
 	     (message "%s" (buffer-string))))))))
 
 (defsubst tramp--test-message (fmt-string &rest arguments)
@@ -411,15 +411,26 @@ properly.  BODY shall not contain a timeout."
 
 (ert-deftest tramp-test02-file-name-dissect ()
   "Check remote file name components."
+  ;; `user-error' has appeared in Emacs 24.3.
+  (skip-unless (fboundp 'user-error))
+
   (let ((tramp-default-method "default-method")
 	(tramp-default-user "default-user")
 	(tramp-default-host "default-host")
 	tramp-default-method-alist
 	tramp-default-user-alist
 	tramp-default-host-alist
+	;; Suppress method name check.
+	(non-essential t)
 	;; Suppress check for multihops.
 	(tramp-cache-data (make-hash-table :test #'equal))
 	(tramp-connection-properties '((nil "login-program" t))))
+    ;; An unknown method shall raise an error.
+    (let (non-essential)
+      (should-error
+       (expand-file-name "/method:user@host:")
+       :type 'user-error))
+
     ;; Expand `tramp-default-user' and `tramp-default-host'.
     (should (string-equal
 	     (file-remote-p "/method::")
@@ -526,7 +537,8 @@ properly.  BODY shall not contain a timeout."
     (should (string-equal
 	     (file-remote-p "/-:user@host#1234:" 'method) "default-method"))
     (should (string-equal (file-remote-p "/-:user@host#1234:" 'user) "user"))
-    (should (string-equal (file-remote-p "/-:user@host#1234:" 'host) "host#1234"))
+    (should (string-equal
+	     (file-remote-p "/-:user@host#1234:" 'host) "host#1234"))
     (should (string-equal (file-remote-p "/-:user@host#1234:" 'localname) ""))
     (should (string-equal (file-remote-p "/-:user@host#1234:" 'hop) nil))
 
@@ -562,7 +574,8 @@ properly.  BODY shall not contain a timeout."
     (should (string-equal
 	     (file-remote-p "/-:1.2.3.4:")
 	     (format "/%s:%s@%s:" "default-method" "default-user" "1.2.3.4")))
-    (should (string-equal (file-remote-p "/-:1.2.3.4:" 'method) "default-method"))
+    (should (string-equal
+	     (file-remote-p "/-:1.2.3.4:" 'method) "default-method"))
     (should (string-equal (file-remote-p "/-:1.2.3.4:" 'user) "default-user"))
     (should (string-equal (file-remote-p "/-:1.2.3.4:" 'host) "1.2.3.4"))
     (should (string-equal (file-remote-p "/-:1.2.3.4:" 'localname) ""))
@@ -851,11 +864,16 @@ properly.  BODY shall not contain a timeout."
 (ert-deftest tramp-test02-file-name-dissect-simplified ()
   "Check simplified file name components."
   :tags '(:expensive-test)
+  ;; `user-error' has appeared in Emacs 24.3.
+  (skip-unless (fboundp 'user-error))
+
   (let ((tramp-default-method "default-method")
 	(tramp-default-user "default-user")
 	(tramp-default-host "default-host")
 	tramp-default-user-alist
 	tramp-default-host-alist
+	;; Suppress method name check.
+	(non-essential t)
 	;; Suppress check for multihops.
 	(tramp-cache-data (make-hash-table :test #'equal))
 	(tramp-connection-properties '((nil "login-program" t)))
@@ -863,6 +881,12 @@ properly.  BODY shall not contain a timeout."
     (unwind-protect
 	(progn
 	  (tramp-change-syntax 'simplified)
+	  ;; An unknown default method shall raise an error.
+	  (let (non-essential)
+	    (should-error
+	     (expand-file-name "/user@host:")
+	     :type 'user-error))
+
 	  ;; Expand `tramp-default-method' and `tramp-default-user'.
 	  (should (string-equal
 		   (file-remote-p "/host:")
@@ -1174,12 +1198,17 @@ properly.  BODY shall not contain a timeout."
 (ert-deftest tramp-test02-file-name-dissect-separate ()
   "Check separate file name components."
   :tags '(:expensive-test)
+  ;; `user-error' has appeared in Emacs 24.3.
+  (skip-unless (fboundp 'user-error))
+
   (let ((tramp-default-method "default-method")
 	(tramp-default-user "default-user")
 	(tramp-default-host "default-host")
 	tramp-default-method-alist
 	tramp-default-user-alist
 	tramp-default-host-alist
+	;; Suppress method name check.
+	(non-essential t)
 	;; Suppress check for multihops.
 	(tramp-cache-data (make-hash-table :test #'equal))
 	(tramp-connection-properties '((nil "login-program" t)))
@@ -1187,6 +1216,12 @@ properly.  BODY shall not contain a timeout."
     (unwind-protect
 	(progn
 	  (tramp-change-syntax 'separate)
+	  ;; An unknown method shall raise an error.
+	  (let (non-essential)
+	    (should-error
+	     (expand-file-name "/[method/user@host]")
+	     :type 'user-error))
+
 	  ;; Expand `tramp-default-user' and `tramp-default-host'.
 	  (should (string-equal
 		   (file-remote-p "/[method/]")
@@ -1825,24 +1860,30 @@ properly.  BODY shall not contain a timeout."
 (ert-deftest tramp-test03-file-name-defaults ()
   "Check default values for some methods."
   ;; Default values in tramp-adb.el.
-  (should (string-equal (file-remote-p "/adb::" 'host) ""))
+  (when (assoc "adb" tramp-methods)
+    (should (string-equal (file-remote-p "/adb::" 'host) "")))
   ;; Default values in tramp-ftp.el.
-  (should (string-equal (file-remote-p "/-:ftp.host:" 'method) "ftp"))
-  (dolist (u '("ftp" "anonymous"))
-    (should (string-equal (file-remote-p (format "/-:%s@:" u) 'method) "ftp")))
+  (when (assoc "ftp" tramp-methods)
+    (should (string-equal (file-remote-p "/-:ftp.host:" 'method) "ftp"))
+    (dolist (u '("ftp" "anonymous"))
+      (should
+       (string-equal (file-remote-p (format "/-:%s@:" u) 'method) "ftp"))))
   ;; Default values in tramp-sh.el and tramp-sudoedit.el.
-  (dolist (h `("127.0.0.1" "[::1]" "localhost" "localhost6" ,(system-name)))
-    (should
-     (string-equal (file-remote-p (format "/-:root@%s:" h) 'method) "su")))
-  (dolist (m '("su" "sudo" "ksu" "doas" "sudoedit"))
-    (should (string-equal (file-remote-p (format "/%s::" m) 'user) "root"))
-    (should
-     (string-equal (file-remote-p (format "/%s::" m) 'host) (system-name))))
-  (dolist (m '("rcp" "remcp" "rsh" "telnet" "krlogin" "fcp" "nc"))
-    (should
-     (string-equal (file-remote-p (format "/%s::" m) 'user) (user-login-name))))
+  (when (assoc "su" tramp-methods)
+    (dolist (h `("127.0.0.1" "[::1]" "localhost" "localhost6" ,(system-name)))
+      (should
+       (string-equal (file-remote-p (format "/-:root@%s:" h) 'method) "su")))
+    (dolist (m '("su" "sudo" "ksu" "doas" "sudoedit"))
+      (should (string-equal (file-remote-p (format "/%s::" m) 'user) "root"))
+      (should
+       (string-equal (file-remote-p (format "/%s::" m) 'host) (system-name))))
+    (dolist (m '("rcp" "remcp" "rsh" "telnet" "krlogin" "fcp" "nc"))
+      (should
+       (string-equal
+	(file-remote-p (format "/%s::" m) 'user) (user-login-name)))))
   ;; Default values in tramp-smb.el.
-  (should (string-equal (file-remote-p "/smb::" 'user) nil)))
+  (when (assoc "smb" tramp-methods)
+    (should (string-equal (file-remote-p "/smb::" 'user) nil))))
 
 ;; The following test is inspired by Bug#30946.
 (ert-deftest tramp-test03-file-name-host-rules ()
@@ -1897,121 +1938,129 @@ properly.  BODY shall not contain a timeout."
 
 (ert-deftest tramp-test04-substitute-in-file-name ()
   "Check `substitute-in-file-name'."
-  (should (string-equal (substitute-in-file-name "/method:host:///foo") "/foo"))
-  (should
-   (string-equal
-    (substitute-in-file-name "/method:host://foo") "/method:host:/foo"))
-  (should
-   (string-equal (substitute-in-file-name "/method:host:/path///foo") "/foo"))
-  (should
-   (string-equal
-    (substitute-in-file-name "/method:host:/path//foo") "/method:host:/foo"))
-  ;; Quoting local part.
-  (should
-   (string-equal
-    (substitute-in-file-name "/method:host:/:///foo") "/method:host:/:///foo"))
-  (should
-   (string-equal
-    (substitute-in-file-name "/method:host:/://foo") "/method:host:/://foo"))
-  (should
-   (string-equal
-    (substitute-in-file-name "/method:host:/:/path///foo")
-    "/method:host:/:/path///foo"))
-  (should
-   (string-equal
-    (substitute-in-file-name "/method:host:/:/path//foo")
-    "/method:host:/:/path//foo"))
-
-  (should
-   (string-equal (substitute-in-file-name "/method:host://~foo") "/~foo"))
-  (should
-   (string-equal
-    (substitute-in-file-name "/method:host:/~foo") "/method:host:/~foo"))
-  (should
-   (string-equal (substitute-in-file-name "/method:host:/path//~foo") "/~foo"))
-  ;; (substitute-in-file-name "/path/~foo") expands only for a local
-  ;; user "foo" to "/~foo"".  Otherwise, it doesn't expand.
-  (should
-   (string-equal
-    (substitute-in-file-name
-     "/method:host:/path/~foo") "/method:host:/path/~foo"))
-  ;; Quoting local part.
-  (should
-   (string-equal
-    (substitute-in-file-name "/method:host:/://~foo") "/method:host:/://~foo"))
-  (should
-   (string-equal
-    (substitute-in-file-name "/method:host:/:/~foo") "/method:host:/:/~foo"))
-  (should
-   (string-equal
-    (substitute-in-file-name
-     "/method:host:/:/path//~foo") "/method:host:/:/path//~foo"))
-  (should
-   (string-equal
-    (substitute-in-file-name
-     "/method:host:/:/path/~foo") "/method:host:/:/path/~foo"))
-
-  (let (process-environment)
+  ;; Suppress method name check.
+  (let ((tramp-methods (cons '("method") tramp-methods)))
+    (should
+     (string-equal (substitute-in-file-name "/method:host:///foo") "/foo"))
     (should
      (string-equal
-      (substitute-in-file-name "/method:host:/path/$FOO")
-      "/method:host:/path/$FOO"))
-    (setenv "FOO" "bla")
+      (substitute-in-file-name "/method:host://foo") "/method:host:/foo"))
+    (should
+     (string-equal (substitute-in-file-name "/method:host:/path///foo") "/foo"))
     (should
      (string-equal
-      (substitute-in-file-name "/method:host:/path/$FOO")
-      "/method:host:/path/bla"))
-    (should
-     (string-equal
-      (substitute-in-file-name "/method:host:/path/$$FOO")
-      "/method:host:/path/$FOO"))
+      (substitute-in-file-name "/method:host:/path//foo") "/method:host:/foo"))
     ;; Quoting local part.
     (should
      (string-equal
-      (substitute-in-file-name "/method:host:/:/path/$FOO")
-      "/method:host:/:/path/$FOO"))
-    (setenv "FOO" "bla")
+      (substitute-in-file-name "/method:host:/:///foo")
+      "/method:host:/:///foo"))
     (should
      (string-equal
-      (substitute-in-file-name "/method:host:/:/path/$FOO")
-      "/method:host:/:/path/$FOO"))
+      (substitute-in-file-name "/method:host:/://foo") "/method:host:/://foo"))
     (should
      (string-equal
-      (substitute-in-file-name "/method:host:/:/path/$$FOO")
-      "/method:host:/:/path/$$FOO"))))
+      (substitute-in-file-name "/method:host:/:/path///foo")
+      "/method:host:/:/path///foo"))
+    (should
+     (string-equal
+      (substitute-in-file-name "/method:host:/:/path//foo")
+      "/method:host:/:/path//foo"))
+
+    (should
+     (string-equal (substitute-in-file-name "/method:host://~foo") "/~foo"))
+    (should
+     (string-equal
+      (substitute-in-file-name "/method:host:/~foo") "/method:host:/~foo"))
+    (should
+     (string-equal
+      (substitute-in-file-name "/method:host:/path//~foo") "/~foo"))
+    ;; (substitute-in-file-name "/path/~foo") expands only for a local
+    ;; user "foo" to "/~foo"".  Otherwise, it doesn't expand.
+    (should
+     (string-equal
+      (substitute-in-file-name
+       "/method:host:/path/~foo") "/method:host:/path/~foo"))
+    ;; Quoting local part.
+    (should
+     (string-equal
+      (substitute-in-file-name "/method:host:/://~foo")
+      "/method:host:/://~foo"))
+    (should
+     (string-equal
+      (substitute-in-file-name "/method:host:/:/~foo") "/method:host:/:/~foo"))
+    (should
+     (string-equal
+      (substitute-in-file-name
+       "/method:host:/:/path//~foo") "/method:host:/:/path//~foo"))
+    (should
+     (string-equal
+      (substitute-in-file-name
+       "/method:host:/:/path/~foo") "/method:host:/:/path/~foo"))
+
+    (let (process-environment)
+      (should
+       (string-equal
+	(substitute-in-file-name "/method:host:/path/$FOO")
+	"/method:host:/path/$FOO"))
+      (setenv "FOO" "bla")
+      (should
+       (string-equal
+	(substitute-in-file-name "/method:host:/path/$FOO")
+	"/method:host:/path/bla"))
+      (should
+       (string-equal
+	(substitute-in-file-name "/method:host:/path/$$FOO")
+	"/method:host:/path/$FOO"))
+      ;; Quoting local part.
+      (should
+       (string-equal
+	(substitute-in-file-name "/method:host:/:/path/$FOO")
+	"/method:host:/:/path/$FOO"))
+      (setenv "FOO" "bla")
+      (should
+       (string-equal
+	(substitute-in-file-name "/method:host:/:/path/$FOO")
+	"/method:host:/:/path/$FOO"))
+      (should
+       (string-equal
+	(substitute-in-file-name "/method:host:/:/path/$$FOO")
+	"/method:host:/:/path/$$FOO")))))
 
 (ert-deftest tramp-test05-expand-file-name ()
   "Check `expand-file-name'."
-  (should
-   (string-equal
-    (expand-file-name "/method:host:/path/./file") "/method:host:/path/file"))
-  (should
-   (string-equal
-    (expand-file-name "/method:host:/path/../file") "/method:host:/file"))
-  (should
-   (string-equal
-    (expand-file-name "/method:host:/path/.") "/method:host:/path"))
-  (should
-   (string-equal
-    (expand-file-name "/method:host:/path/..") "/method:host:/"))
-  (should
-   (string-equal
-    (expand-file-name "." "/method:host:/path/") "/method:host:/path"))
-  (should
-   (string-equal
-    (expand-file-name "" "/method:host:/path/") "/method:host:/path"))
-  ;; Quoting local part.
-  (should
-   (string-equal
-    (expand-file-name "/method:host:/:/path/./file")
-    "/method:host:/:/path/file"))
-  (should
-   (string-equal
-    (expand-file-name "/method:host:/:/path/../file") "/method:host:/:/file"))
-  (should
-   (string-equal
-    (expand-file-name "/method:host:/:/~/path/./file")
-    "/method:host:/:/~/path/file")))
+  ;; Suppress method name check.
+  (let ((tramp-methods (cons '("method") tramp-methods)))
+    (should
+     (string-equal
+      (expand-file-name "/method:host:/path/./file") "/method:host:/path/file"))
+    (should
+     (string-equal
+      (expand-file-name "/method:host:/path/../file") "/method:host:/file"))
+    (should
+     (string-equal
+      (expand-file-name "/method:host:/path/.") "/method:host:/path"))
+    (should
+     (string-equal
+      (expand-file-name "/method:host:/path/..") "/method:host:/"))
+    (should
+     (string-equal
+      (expand-file-name "." "/method:host:/path/") "/method:host:/path"))
+    (should
+     (string-equal
+      (expand-file-name "" "/method:host:/path/") "/method:host:/path"))
+    ;; Quoting local part.
+    (should
+     (string-equal
+      (expand-file-name "/method:host:/:/path/./file")
+      "/method:host:/:/path/file"))
+    (should
+     (string-equal
+      (expand-file-name "/method:host:/:/path/../file") "/method:host:/:/file"))
+    (should
+     (string-equal
+      (expand-file-name "/method:host:/:/~/path/./file")
+      "/method:host:/:/~/path/file"))))
 
 ;; The following test is inspired by Bug#26911 and Bug#34834.  They
 ;; are rather bugs in `expand-file-name', and it fails for all Emacs
@@ -2041,48 +2090,51 @@ properly.  BODY shall not contain a timeout."
   "Check `directory-file-name'.
 This checks also `file-name-as-directory', `file-name-directory',
 `file-name-nondirectory' and `unhandled-file-name-directory'."
-  (should
-   (string-equal
-    (directory-file-name "/method:host:/path/to/file")
-    "/method:host:/path/to/file"))
-  (should
-   (string-equal
-    (directory-file-name "/method:host:/path/to/file/")
-    "/method:host:/path/to/file"))
-  (should
-   (string-equal
-    (directory-file-name "/method:host:/path/to/file//")
-    "/method:host:/path/to/file"))
-  (should
-   (string-equal
-    (file-name-as-directory "/method:host:/path/to/file")
-    "/method:host:/path/to/file/"))
-  (should
-   (string-equal
-    (file-name-as-directory "/method:host:/path/to/file/")
-    "/method:host:/path/to/file/"))
-  (should
-   (string-equal
-    (file-name-directory "/method:host:/path/to/file")
-    "/method:host:/path/to/"))
-  (should
-   (string-equal
-    (file-name-directory "/method:host:/path/to/file/")
-    "/method:host:/path/to/file/"))
-  (should
-   (string-equal (file-name-directory "/method:host:file") "/method:host:"))
-  (should
-   (string-equal
-    (file-name-directory "/method:host:path/") "/method:host:path/"))
-  (should
-   (string-equal
-    (file-name-directory "/method:host:path/to") "/method:host:path/"))
-  (should
-   (string-equal (file-name-nondirectory "/method:host:/path/to/file") "file"))
-  (should
-   (string-equal (file-name-nondirectory "/method:host:/path/to/file/") ""))
-  (should-not
-   (unhandled-file-name-directory "/method:host:/path/to/file"))
+  ;; Suppress method name check.
+  (let ((tramp-methods (cons '("method") tramp-methods)))
+    (should
+     (string-equal
+      (directory-file-name "/method:host:/path/to/file")
+      "/method:host:/path/to/file"))
+    (should
+     (string-equal
+      (directory-file-name "/method:host:/path/to/file/")
+      "/method:host:/path/to/file"))
+    (should
+     (string-equal
+      (directory-file-name "/method:host:/path/to/file//")
+      "/method:host:/path/to/file"))
+    (should
+     (string-equal
+      (file-name-as-directory "/method:host:/path/to/file")
+      "/method:host:/path/to/file/"))
+    (should
+     (string-equal
+      (file-name-as-directory "/method:host:/path/to/file/")
+      "/method:host:/path/to/file/"))
+    (should
+     (string-equal
+      (file-name-directory "/method:host:/path/to/file")
+      "/method:host:/path/to/"))
+    (should
+     (string-equal
+      (file-name-directory "/method:host:/path/to/file/")
+      "/method:host:/path/to/file/"))
+    (should
+     (string-equal (file-name-directory "/method:host:file") "/method:host:"))
+    (should
+     (string-equal
+      (file-name-directory "/method:host:path/") "/method:host:path/"))
+    (should
+     (string-equal
+      (file-name-directory "/method:host:path/to") "/method:host:path/"))
+    (should
+     (string-equal
+      (file-name-nondirectory "/method:host:/path/to/file") "file"))
+    (should
+     (string-equal (file-name-nondirectory "/method:host:/path/to/file/") ""))
+    (should-not
+     (unhandled-file-name-directory "/method:host:/path/to/file")))
 
   ;; Bug#10085.
   (when (tramp--test-enabled) ;; Packages like tramp-gvfs.el might be disabled.
@@ -2269,6 +2321,37 @@ This checks also `file-name-as-directory', `file-name-directory',
 
 	;; Cleanup.
 	(ignore-errors (delete-file tmp-name))))))
+
+;; The following test is inspired by Bug#35497.
+(ert-deftest tramp-test10-write-region-file-precious-flag ()
+  "Check that `file-precious-flag' is respected with Tramp in use."
+  (skip-unless (tramp--test-enabled))
+  (skip-unless (tramp--test-sh-p))
+  ;; The bug is fixed in Emacs 27.1.
+  (skip-unless (tramp--test-emacs27-p))
+
+  (let* ((tmp-name (tramp--test-make-temp-name))
+         written-files
+         (advice (lambda (_start _end filename &rest _r)
+                   (push filename written-files))))
+
+    (unwind-protect
+        (with-current-buffer (find-file-noselect tmp-name)
+          ;; Write initial contents.  Adapt `visited-file-modtime'
+          ;; in order to suppress confirmation.
+          (insert "foo")
+          (write-region nil nil tmp-name)
+          (set-visited-file-modtime)
+          ;; Run the test.
+          (advice-add 'write-region :before advice)
+          (setq-local file-precious-flag t)
+          (insert "bar")
+          (should (null (save-buffer)))
+          (should-not (cl-member tmp-name written-files :test #'string=)))
+
+      ;; Cleanup.
+      (ignore-errors (advice-remove 'write-region advice))
+      (ignore-errors (delete-file tmp-name)))))
 
 (ert-deftest tramp-test11-copy-file ()
   "Check `copy-file'."
@@ -2762,7 +2845,9 @@ This tests also `file-directory-p' and `file-accessible-directory-p'."
 	    ;; returns `file-missing'.
 	    (delete-directory tmp-name1 'recursive)
 	    (with-temp-buffer
-	      (should-error (insert-directory tmp-name1 nil))))
+	      (should-error
+	       (insert-directory tmp-name1 nil)
+	       :type tramp-file-missing)))
 
 	;; Cleanup.
 	(ignore-errors (delete-directory tmp-name1 'recursive))))))
@@ -3010,6 +3095,9 @@ They might differ only in access time."
   (setcar (nthcdr 4 attr1) tramp-time-dont-know)
   (setcar (nthcdr 4 attr2) tramp-time-dont-know)
   (equal attr1 attr2))
+
+;; This isn't 100% correct, but better than no explainer at all.
+(put #'tramp--test-file-attributes-equal-p 'ert-explainer #'ert--explain-equal)
 
 (ert-deftest tramp-test19-directory-files-and-attributes ()
   "Check `directory-files-and-attributes'."
@@ -3843,6 +3931,10 @@ This tests also `make-symbolic-link', `file-truename' and `add-name-to-file'."
 (defun tramp--test-timeout-handler (&rest _ignore)
   "Timeout handler, reporting a failed test."
   (interactive)
+  (let ((proc (get-buffer-process (current-buffer))))
+    (when (processp proc)
+      (tramp--test-message
+       "cmd: %s\n%s" (process-command proc) (buffer-string))))
   (ert-fail (format "`%s' timed out" (ert-test-name (ert-running-test)))))
 
 (ert-deftest tramp-test29-start-file-process ()
@@ -3923,23 +4015,24 @@ This tests also `make-symbolic-link', `file-truename' and `add-name-to-file'."
   :tags '(:expensive-test)
   (skip-unless (tramp--test-enabled))
   (skip-unless (or (tramp--test-adb-p) (tramp--test-sh-p)))
-  ;; `make-process' supports file name handlers since Emacs 27.
+  ;; `make-process' has been inserted in Emacs 25.1.  It supports file
+  ;; name handlers since Emacs 27.
   (skip-unless (tramp--test-emacs27-p))
 
-  (tramp--test-instrument-test-case 0
   (dolist (quoted (if (tramp--test-expensive-test) '(nil t) '(nil)))
     (let ((default-directory tramp-test-temporary-file-directory)
 	  (tmp-name (tramp--test-make-temp-name nil quoted))
 	  kill-buffer-query-functions proc)
-      (should-not (make-process))
+      (should-not (with-no-warnings (make-process)))
 
       ;; Simple process.
       (unwind-protect
 	  (with-temp-buffer
 	    (setq proc
-		  (make-process
-		   :name "test1" :buffer (current-buffer) :command '("cat")
-		   :file-handler t))
+		  (with-no-warnings
+		    (make-process
+		     :name "test1" :buffer (current-buffer) :command '("cat")
+		     :file-handler t)))
 	    (should (processp proc))
 	    (should (equal (process-status proc) 'run))
 	    (process-send-string proc "foo")
@@ -3961,10 +4054,11 @@ This tests also `make-symbolic-link', `file-truename' and `add-name-to-file'."
 	    (write-region "foo" nil tmp-name)
 	    (should (file-exists-p tmp-name))
 	    (setq proc
-		  (make-process
-		   :name "test2" :buffer (current-buffer)
-		   :command `("cat" ,(file-name-nondirectory tmp-name))
-		   :file-handler t))
+		  (with-no-warnings
+		    (make-process
+		     :name "test2" :buffer (current-buffer)
+		     :command `("cat" ,(file-name-nondirectory tmp-name))
+		     :file-handler t)))
 	    (should (processp proc))
 	    ;; Read output.
 	    (with-timeout (10 (tramp--test-timeout-handler))
@@ -3981,12 +4075,13 @@ This tests also `make-symbolic-link', `file-truename' and `add-name-to-file'."
       (unwind-protect
 	  (with-temp-buffer
 	    (setq proc
-		  (make-process
-		   :name "test3" :buffer (current-buffer) :command '("cat")
-		   :filter
-		   (lambda (p s)
-		     (with-current-buffer (process-buffer p) (insert s)))
-		   :file-handler t))
+		  (with-no-warnings
+		    (make-process
+		     :name "test3" :buffer (current-buffer) :command '("cat")
+		     :filter
+		     (lambda (p s)
+		       (with-current-buffer (process-buffer p) (insert s)))
+		     :file-handler t)))
 	    (should (processp proc))
 	    (should (equal (process-status proc) 'run))
 	    (process-send-string proc "foo")
@@ -4006,12 +4101,13 @@ This tests also `make-symbolic-link', `file-truename' and `add-name-to-file'."
       (unwind-protect
 	  (with-temp-buffer
 	    (setq proc
-		  (make-process
-		   :name "test4" :buffer (current-buffer) :command '("cat")
-		   :sentinel
-		   (lambda (p s)
-		     (with-current-buffer (process-buffer p) (insert s)))
-		   :file-handler t))
+		  (with-no-warnings
+		    (make-process
+		     :name "test4" :buffer (current-buffer) :command '("cat")
+		     :sentinel
+		     (lambda (p s)
+		       (with-current-buffer (process-buffer p) (insert s)))
+		     :file-handler t)))
 	    (should (processp proc))
 	    (should (equal (process-status proc) 'run))
 	    (process-send-string proc "foo")
@@ -4034,11 +4130,12 @@ This tests also `make-symbolic-link', `file-truename' and `add-name-to-file'."
 	  (unwind-protect
 	      (with-temp-buffer
 		(setq proc
-		      (make-process
-		       :name "test5" :buffer (current-buffer)
-		       :command '("cat" "/")
-		       :stderr stderr
-		       :file-handler t))
+		      (with-no-warnings
+			(make-process
+			 :name "test5" :buffer (current-buffer)
+			 :command '("cat" "/")
+			 :stderr stderr
+			 :file-handler t)))
 		(should (processp proc))
 		;; Read stderr.
 		(with-current-buffer stderr
@@ -4050,7 +4147,7 @@ This tests also `make-symbolic-link', `file-truename' and `add-name-to-file'."
 
 	    ;; Cleanup.
 	    (ignore-errors (delete-process proc))
-	    (ignore-errors (kill-buffer stderr)))))))))
+	    (ignore-errors (kill-buffer stderr))))))))
 
 (ert-deftest tramp-test31-interrupt-process ()
   "Check `interrupt-process'."
@@ -4060,7 +4157,10 @@ This tests also `make-symbolic-link', `file-truename' and `add-name-to-file'."
   ;; Since Emacs 26.1.
   (skip-unless (boundp 'interrupt-process-functions))
 
-  (let ((default-directory tramp-test-temporary-file-directory)
+  ;; We must use `file-truename' for the temporary directory, in
+  ;; order to establish the connection prior running an asynchronous
+  ;; process.
+  (let ((default-directory (file-truename tramp-test-temporary-file-directory))
 	kill-buffer-query-functions proc)
     (unwind-protect
 	(with-temp-buffer
@@ -4079,6 +4179,16 @@ This tests also `make-symbolic-link', `file-truename' and `add-name-to-file'."
       ;; Cleanup.
       (ignore-errors (delete-process proc)))))
 
+(defun tramp--test-shell-command-to-string-asynchronously (command)
+  "Like `shell-command-to-string', but for asynchronous processes."
+  (with-temp-buffer
+    (async-shell-command command (current-buffer))
+    (with-timeout
+        ((if (getenv "EMACS_EMBA_CI") 30 10) (tramp--test-timeout-handler))
+      (while (accept-process-output
+	      (get-buffer-process (current-buffer)) nil nil t)))
+    (buffer-substring-no-properties (point-min) (point-max))))
+
 (ert-deftest tramp-test32-shell-command ()
   "Check `shell-command'."
   :tags '(:expensive-test)
@@ -4094,6 +4204,8 @@ This tests also `make-symbolic-link', `file-truename' and `add-name-to-file'."
 	  ;; Suppress nasty messages.
 	  (inhibit-message t)
 	  kill-buffer-query-functions)
+
+      ;; Test ordinary `shell-command'.
       (unwind-protect
 	  (with-temp-buffer
 	    (write-region "foo" nil tmp-name)
@@ -4114,6 +4226,7 @@ This tests also `make-symbolic-link', `file-truename' and `add-name-to-file'."
 	;; Cleanup.
 	(ignore-errors (delete-file tmp-name)))
 
+      ;; Test ordinary `async-shell-command'.
       (unwind-protect
 	  (with-temp-buffer
 	    (write-region "foo" nil tmp-name)
@@ -4142,6 +4255,7 @@ This tests also `make-symbolic-link', `file-truename' and `add-name-to-file'."
 	;; Cleanup.
 	(ignore-errors (delete-file tmp-name)))
 
+      ;; Test sending string to `async-shell-command'.
       (unwind-protect
 	  (with-temp-buffer
 	    (write-region "foo" nil tmp-name)
@@ -4169,17 +4283,24 @@ This tests also `make-symbolic-link', `file-truename' and `add-name-to-file'."
 	      (buffer-string))))
 
 	;; Cleanup.
-	(ignore-errors (delete-file tmp-name))))))
+	(ignore-errors (delete-file tmp-name)))
 
-(defun tramp--test-shell-command-to-string-asynchronously (command)
-  "Like `shell-command-to-string', but for asynchronous processes."
-  (with-temp-buffer
-    (async-shell-command command (current-buffer))
-    (with-timeout
-        ((if (getenv "EMACS_EMBA_CI") 30 10) (tramp--test-timeout-handler))
-      (while (accept-process-output
-	      (get-buffer-process (current-buffer)) nil nil t)))
-    (buffer-substring-no-properties (point-min) (point-max))))
+      ;; Test `async-shell-command-width'.  Since Emacs 27.1.
+      (when (and (boundp 'async-shell-command-width)
+		 (zerop (call-process "tput" nil nil nil "cols"))
+                 (zerop (process-file "tput" nil nil nil "cols")))
+	(let (async-shell-command-width)
+	  (should
+	   (string-equal
+	    (format "%s\n" (car (process-lines "tput" "cols")))
+	    (tramp--test-shell-command-to-string-asynchronously
+	     "tput cols")))
+	  (setq async-shell-command-width 1024)
+	  (should
+	   (string-equal
+	    "1024\n"
+	    (tramp--test-shell-command-to-string-asynchronously
+	     "tput cols"))))))))
 
 ;; This test is inspired by Bug#23952.
 (ert-deftest tramp-test33-environment-variables ()
@@ -4257,7 +4378,7 @@ This tests also `make-symbolic-link', `file-truename' and `add-name-to-file'."
 	      (should-not
 	       (string-match
 		(regexp-quote envvar)
-		(funcall this-shell-command-to-string "set")))))))))
+		(funcall this-shell-command-to-string "env")))))))))
 
 ;; This test is inspired by Bug#27009.
 (ert-deftest tramp-test33-environment-variables-and-port-numbers ()
@@ -4534,7 +4655,11 @@ This tests also `make-symbolic-link', `file-truename' and `add-name-to-file'."
   (skip-unless (tramp--test-sh-p))
 
   (dolist (quoted (if (tramp--test-expensive-test) '(nil t) '(nil)))
-    (let* ((default-directory tramp-test-temporary-file-directory)
+    ;; We must use `file-truename' for the temporary directory, in
+    ;; order to establish the connection prior running an asynchronous
+    ;; process.
+    (let* ((default-directory
+	     (file-truename tramp-test-temporary-file-directory))
 	   (tmp-name1 (tramp--test-make-temp-name nil quoted))
 	   (tmp-name2 (expand-file-name "foo" tmp-name1))
 	   (tramp-remote-process-environment tramp-remote-process-environment)
@@ -5557,7 +5682,9 @@ process sentinels.  They shall not disturb each other."
   (let ((default-directory (expand-file-name temporary-file-directory))
 	(code
 	 (format
-	  "(message \"Tramp loaded: %%s\" (and (file-remote-p %S) t))"
+	  ;; Suppress method name check.
+	  "(let ((non-essential t)) \
+             (message \"Tramp loaded: %%s\" (and (file-remote-p %S) t)))"
 	  tramp-test-temporary-file-directory)))
     (should
      (string-match
@@ -5695,7 +5822,7 @@ Since it unloads Tramp, it shall be the last test to run."
 	  (ert-fail (format "`%s' still bound" x)))))
   ;; The defstruct `tramp-file-name' and all its internal functions
   ;; shall be purged.
-  (should-not (cl--find-class 'tramp-file-name))
+  (should-not (with-no-warnings (cl--find-class 'tramp-file-name)))
   (mapatoms
    (lambda (x)
      (and (functionp x)
@@ -5736,9 +5863,9 @@ Since it unloads Tramp, it shall be the last test to run."
 ;;   do not work properly for `nextcloud'.
 ;; * Fix `tramp-test29-start-file-process' and
 ;;   `tramp-test30-make-process' on MS Windows (`process-send-eof'?).
+;; * Implement `tramp-test31-interrupt-process' for `adb'.
 ;; * Fix Bug#16928 in `tramp-test43-asynchronous-requests'.  Looks
 ;;   like it is resolved now.  Remove `:unstable' tag?
-;; * Implement `tramp-test31-interrupt-process' for `adb'.
 
 (provide 'tramp-tests)
 ;;; tramp-tests.el ends here

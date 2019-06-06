@@ -110,9 +110,9 @@ If non-nil, the value is passed directly to `recenter'."
   :type 'hook
   :group 'next-error)
 
-(defcustom next-error-verbosity nil
-  "If nil, `next-error' always outputs the current error buffer.
-If non-nil, the message is output only when the error buffer
+(defcustom next-error-verbose t
+  "If non-nil, `next-error' always outputs the current error buffer.
+If nil, the message is output only when the error buffer
 changes."
   :group 'next-error
   :type 'boolean
@@ -323,7 +323,7 @@ To control which errors are matched, customize the variable
         (funcall next-error-function (prefix-numeric-value arg) reset)
         (let ((prev next-error-last-buffer))
           (next-error-found buffer (current-buffer))
-          (when (or (not next-error-verbosity)
+          (when (or next-error-verbose
                     (not (eq prev next-error-last-buffer)))
             (message "%s locus from %s"
                      (cond (reset                             "First")
@@ -339,7 +339,7 @@ To control which errors are matched, customize the variable
     (funcall next-error-function 0 nil)
     (let ((prev next-error-last-buffer))
       (next-error-found buffer (current-buffer))
-      (when (or (not next-error-verbosity)
+      (when (or next-error-verbose
                 (not (eq prev next-error-last-buffer)))
         (message "Current locus from %s" next-error-last-buffer)))))
 
@@ -1646,12 +1646,14 @@ this command arranges for all errors to enter the debugger."
          (eval-expression-get-print-arguments current-prefix-arg)))
 
   (if (null eval-expression-debug-on-error)
-      (push (eval (macroexpand-all exp) lexical-binding) values)
+      (push (eval (let ((lexical-binding t)) (macroexpand-all exp)) t)
+            values)
     (let ((old-value (make-symbol "t")) new-value)
       ;; Bind debug-on-error to something unique so that we can
       ;; detect when evalled code changes it.
       (let ((debug-on-error old-value))
-	(push (eval (macroexpand-all exp) lexical-binding) values)
+	(push (eval (let ((lexical-binding t)) (macroexpand-all exp)) t)
+              values)
 	(setq new-value debug-on-error))
       ;; If evalled code has changed the value of debug-on-error,
       ;; propagate that change to the global binding.
@@ -2436,6 +2438,28 @@ in the search status stack."
   "Restore the minibuffer history search state.
 Go to the history element by the absolute history position HIST-POS."
   (goto-history-element hist-pos))
+
+
+(add-hook 'minibuffer-setup-hook 'minibuffer-error-initialize)
+
+(defun minibuffer-error-initialize ()
+  "Set up minibuffer error processing."
+  (setq-local command-error-function 'minibuffer-error-function))
+
+(defun minibuffer-error-function (data context caller)
+  "Display error messages in the active minibuffer.
+The same as `command-error-default-function' but display error messages
+at the end of the minibuffer using `minibuffer-message' to not obscure
+the minibuffer contents."
+  (discard-input)
+  (ding)
+  (let ((string (error-message-string data)))
+    ;; If we know from where the error was signaled, show it in
+    ;; *Messages*.
+    (let ((inhibit-message t))
+      (message "%s%s" (if caller (format "%s: " caller) "") string))
+    ;; Display an error message at the end of the minibuffer.
+    (minibuffer-message (concat context string))))
 
 
 ;Put this on C-x u, so we can force that rather than C-_ into startup msg
@@ -3351,6 +3375,16 @@ is output."
   :group 'shell
   :version "26.1")
 
+(defcustom async-shell-command-width nil
+  "Number of display columns available for asynchronous shell command output.
+If nil, use the shell default number (usually 80 columns).
+If a positive integer, tell the shell to use that number of columns for
+command output."
+  :type '(choice (const :tag "Use system limit" nil)
+                 (integer :tag "Fixed width" :value 80))
+  :group 'shell
+  :version "27.1")
+
 (defcustom shell-command-dont-erase-buffer nil
   "If non-nil, output buffer is not erased between shell commands.
 Also, a non-nil value sets the point in the output buffer
@@ -3614,8 +3648,13 @@ impose the use of a shell (with its need to quote arguments)."
 		(with-current-buffer buffer
                   (shell-command--save-pos-or-erase)
 		  (setq default-directory directory)
-                  (setq proc
-                        (start-process-shell-command "Shell" buffer command))
+		  (let ((process-environment
+			 (if (natnump async-shell-command-width)
+			     (cons (format "COLUMNS=%d" async-shell-command-width)
+				   process-environment)
+			   process-environment)))
+		    (setq proc
+			  (start-process-shell-command "Shell" buffer command)))
 		  (setq mode-line-process '(":%s"))
 		  (require 'shell) (shell-mode)
                   (set-process-sentinel proc #'shell-command-sentinel)
@@ -5595,7 +5634,7 @@ see `region-noncontiguous-p' and `extract-rectangle-bounds'."
   "Return non-nil if the region contains several pieces.
 An example is a rectangular region handled as a list of
 separate contiguous regions for each line."
-  (> (length (region-bounds)) 1))
+  (cdr (region-bounds)))
 
 (defvar redisplay-unhighlight-region-function
   (lambda (rol) (when (overlayp rol) (delete-overlay rol))))

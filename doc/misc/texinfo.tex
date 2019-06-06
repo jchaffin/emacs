@@ -3,7 +3,7 @@
 % Load plain if necessary, i.e., if running under initex.
 \expandafter\ifx\csname fmtname\endcsname\relax\input plain\fi
 %
-\def\texinfoversion{2019-03-23.11}
+\def\texinfoversion{2019-05-18.15}
 %
 % Copyright 1985, 1986, 1988, 1990-2019 Free Software Foundation, Inc.
 %
@@ -2175,7 +2175,7 @@ end
 % A few fonts for @defun names and args.
 \setfont\defbf\bfshape{10}{\magstep1}{OT1}
 \setfont\deftt\ttshape{10}{\magstep1}{OT1TT}
-\setfont\defsl\slshape{10}{\magstep1}{OT1TT}
+\setfont\defsl\slshape{10}{\magstep1}{OT1}
 \setfont\defttsl\ttslshape{10}{\magstep1}{OT1TT}
 \def\df{\let\ttfont=\deftt \let\bffont = \defbf
 \let\ttslfont=\defttsl \let\slfont=\defsl \bf}
@@ -2323,7 +2323,7 @@ end
 % A few fonts for @defun names and args.
 \setfont\defbf\bfshape{10}{\magstephalf}{OT1}
 \setfont\deftt\ttshape{10}{\magstephalf}{OT1TT}
-\setfont\defsl\slshape{10}{\magstephalf}{OT1TT}
+\setfont\defsl\slshape{10}{\magstephalf}{OT1}
 \setfont\defttsl\ttslshape{10}{\magstephalf}{OT1TT}
 \def\df{\let\ttfont=\deftt \let\bffont = \defbf
 \let\slfont=\defsl \let\ttslfont=\defttsl \bf}
@@ -3098,9 +3098,9 @@ end
 % Allow a ragged right output to aid breaking long URL's.  Putting stretch in 
 % between characters of the URL doesn't look good.
 \def\urefallowbreak{%
-  \hskip 0pt plus 1fil\relax
+  \hskip 0pt plus 4 em\relax
   \allowbreak
-  \hskip 0pt plus -1fil\relax
+  \hskip 0pt plus -4 em\relax
 }
 
 \urefbreakstyle after
@@ -4915,6 +4915,7 @@ end
   % Assorted special characters.
   \definedummyword\atchar
   \definedummyword\arrow
+  \definedummyword\backslashchar
   \definedummyword\bullet
   \definedummyword\comma
   \definedummyword\copyright
@@ -4950,6 +4951,8 @@ end
   \definedummyword\sub
   \definedummyword\sup
   \definedummyword\textdegree
+  %
+  \definedummyword\subentry
   %
   % We want to disable all macros so that they are not expanded by \write.
   \macrolist
@@ -5034,6 +5037,7 @@ end
 \let\indexlbrace\relax
 \let\indexrbrace\relax
 \let\indexatchar\relax
+\let\indexbackslash\relax
 
 {\catcode`\@=0
 \catcode`\\=13
@@ -5222,13 +5226,18 @@ end
 }
 
 \def\indexwriteseealso#1{
-  \gdef\pagenumbertext{@seealso{#1}}%
+  \gdef\pagenumbertext{\string\seealso{#1}}%
+}
+\def\indexwriteseeentry#1{
+  \gdef\pagenumbertext{\string\seeentry{#1}}%
 }
 
 % The default definitions
 \def\sortas#1{}%
 \def\seealso#1{\i{\putwordSeeAlso}\ #1}% for sorted index file only
-\def\putwordSeeAlso{see also}
+\def\putwordSeeAlso{See also}
+\def\seeentry#1{\i{\putwordSee}\ #1}% for sorted index file only
+
 
 % Given index entry text like "aaa @subentry bbb @sortas{ZZZ}":
 %   * Set \bracedtext to "{aaa}{bbb}"
@@ -5240,6 +5249,7 @@ end
   \xdef\bracedtext{}%
   \def\sep{}%
   \def\seealso##1{}%
+  \def\seeentry##1{}%
   \expandafter\doindexsegment#1\subentry\finish\subentry
 }
 
@@ -5261,14 +5271,17 @@ end
     \bgroup
       \let\sortas\indexwritesortas
       \let\seealso\indexwriteseealso
+      \let\seeentry\indexwriteseeentry
       \indexnofonts
       % The braces around the commands are recognized by texindex.
-      \def\lbracechar{{\indexlbrace}}%
-      \def\rbracechar{{\indexrbrace}}%
+      \def\lbracechar{{\string\indexlbrace}}%
+      \def\rbracechar{{\string\indexrbrace}}%
       \let\{=\lbracechar
       \let\}=\rbracechar
-      \def\@{{\indexatchar}}%
+      \def\@{{\string\indexatchar}}%
       \def\atchar##1{\@}%
+      \def\backslashchar{{\string\indexbackslash}}%
+      \uccode`\~=`\\ \uppercase{\let~\backslashchar}%
       %
       \let\indexsortkey\empty
       \global\let\pagenumbertext\empty
@@ -5298,16 +5311,36 @@ end
 
 \let\subentry\relax
 
-% Write the entry in \toks0 to the index file.
+% Use \ instead of @ in index files.  To support old texi2dvi and texindex.
+% This works without changing the escape character used in the toc or aux
+% files because the index entries are fully expanded here, and \string uses
+% the current value of \escapechar.
+\def\escapeisbackslash{\escapechar=`\\}
+
+% Use \ in index files by default.  texi2dvi didn't support @ as as the escape 
+% character (as it checked for "\entry" in the files, and not "@entry").  When 
+% the new version of texi2dvi has had a chance to become more prevalent, then 
+% the escape character can change back to @ again.  This should be an easy 
+% change to make now because both @ and \ are only used as escape characters in 
+% index files, never standing for themselves. 
+%
+\set txiindexescapeisbackslash
+
+% Write the entry in \indextext to the index file.
 %
 \def\doindwrite{%
   \maybemarginindex
   %
   \atdummies
   %
+  \expandafter\ifx\csname SETtxiindexescapeisbackslash\endcsname\relax\else
+    \escapeisbackslash
+  \fi
+  %
   % For texindex which always views { and } as separators.
   \def\{{\lbracechar{}}%
   \def\}{\rbracechar{}}%
+  \uccode`\~=`\\ \uppercase{\def~{\backslashchar{}}}%
   %
   % Split the entry into primary entry and any subentries, and get the index 
   % sort key.
@@ -5486,12 +5519,37 @@ end
 % old index files using \ as the escape character.  Reading this would
 % at best lead to typesetting garbage, at worst a TeX syntax error.
 \def\printindexzz#1#2\finish{%
-  % NB this won't work if the index file starts with a group...
-  \uccode`\~=`\\ \uppercase{\if\noexpand~}\noexpand#1
-    \message{skipping sorted index file}%
-    (Skipped sorted index file in obsolete format)
+  \expandafter\ifx\csname SETtxiindexescapeisbackslash\endcsname\relax
+    \uccode`\~=`\\ \uppercase{\if\noexpand~}\noexpand#1
+      \expandafter\ifx\csname SETtxiskipindexfileswithbackslash\endcsname\relax
+\errmessage{%
+ERROR: A sorted index file in an obsolete format was skipped.  
+To fix this problem, please upgrade your version of 'texi2dvi'
+or 'texi2pdf' to that at <https://ftp.gnu.org/gnu/texinfo>.
+If you are using an old version of 'texindex' (part of the Texinfo 
+distribution), you may also need to upgrade to a newer version (at least 6.0).
+You may be able to typeset the index if you run
+'texindex \jobname.\indexname' yourself.
+You could also try setting the 'txiindexescapeisbackslash' flag by 
+running a command like
+'texi2dvi -t "@set txiindexescapeisbackslash" \jobname.texi'.  If you do 
+this, Texinfo will try to use index files in the old format.
+If you continue to have problems, deleting the index files and starting again 
+might help (with 'rm \jobname.?? \jobname.??s')%
+}%
+      \else
+        (Skipped sorted index file in obsolete format)
+      \fi
+    \else
+      \begindoublecolumns
+      \input \jobname.\indexname s
+      \enddoublecolumns
+    \fi
   \else
+    \message{trying to print index \indexname}%
     \begindoublecolumns
+    \catcode`\\=0\relax
+    \catcode`\@=12\relax
     \input \jobname.\indexname s
     \enddoublecolumns
   \fi
@@ -5508,6 +5566,7 @@ end
   \let\indexlbrace\{%
   \let\indexrbrace\}%
   \let\indexatchar\@%
+  \def\indexbackslash{\math{\backslash}}%
   %
   % Some changes for non-alphabetic characters.  Using the glyphs from the
   % math fonts looks more consistent than the typewriter font used elsewhere
@@ -8627,8 +8686,16 @@ end
 }
 \def\wordTop{Top}
 
-% Divert output to a box that is not output until the next @node command.
-\def\ignorenode{\setbox\dummybox\vbox\bgroup\def\node{\egroup\node}}
+% Until the next @node or @bye command, divert output to a box that is not 
+% output.
+\def\ignorenode{\setbox\dummybox\vbox\bgroup\def\node{\egroup\node}%
+\ignorenodebye
+}
+
+{\let\bye\relax
+\gdef\ignorenodebye{\let\bye\ignorenodebyedef}
+\gdef\ignorenodebyedef{\egroup(`Top' node ignored)\bye}}
+% The redefinition of \bye here is because it is declared \outer
 
 \let\lastnode=\empty
 

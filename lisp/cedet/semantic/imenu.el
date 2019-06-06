@@ -4,7 +4,6 @@
 ;; Foundation, Inc.
 
 ;; Author: Eric M. Ludlam <zappo@gnu.org>
-;; Maintainer: Eric Ludlam
 
 ;; This file is part of GNU Emacs.
 

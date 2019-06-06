@@ -73,7 +73,7 @@ static EMACS_INT search_buffer (Lisp_Object, ptrdiff_t, ptrdiff_t,
 
 Lisp_Object re_match_object;
 
-static _Noreturn void
+static AVOID
 matcher_overflow (void)
 {
   error ("Stack overflow in regexp matcher");
@@ -1324,12 +1324,7 @@ search_buffer_non_re (Lisp_Object string, ptrdiff_t pos,
     }
   else
     {
-      /* Converting multibyte to single-byte.
-
-         ??? Perhaps this conversion should be done in a special way
-         by subtracting nonascii-insert-offset from each non-ASCII char,
-         so that only the multibyte chars which really correspond to
-         the chosen single-byte character set can possibly match.  */
+      /* Converting multibyte to single-byte.  */
       raw_pattern_size = SCHARS (string);
       raw_pattern_size_byte = SCHARS (string);
       raw_pattern = SAFE_ALLOCA (raw_pattern_size + 1);
@@ -3386,12 +3381,6 @@ syms_of_search (void)
 	pure_list (Qinvalid_regexp, Qerror));
   Fput (Qinvalid_regexp, Qerror_message,
 	build_pure_c_string ("Invalid regexp"));
-
-  last_thing_searched = Qnil;
-  staticpro (&last_thing_searched);
-
-  saved_last_thing_searched = Qnil;
-  staticpro (&saved_last_thing_searched);
 
   re_match_object = Qnil;
   staticpro (&re_match_object);

@@ -31,7 +31,6 @@
 (autoload 'auth-source-search "auth-source")
 (autoload 'pop3-movemail "pop3")
 (autoload 'pop3-get-message-count "pop3")
-(autoload 'nnheader-cancel-timer "nnheader")
 (require 'mm-util)
 (require 'message) ;; for `message-directory'
 
@@ -723,8 +722,7 @@ Deleting old (> %s day(s)) incoming mail file `%s'." diff bfile)
 				   (buffer-string) result))
 		    (error "%s" (buffer-string)))
 		  (setq to nil)))))))
-      (when (and errors
-		 (buffer-name errors))
+      (when (buffer-live-p errors)
 	(kill-buffer errors))
       ;; Return whether we moved successfully or not.
       to)))
@@ -989,9 +987,9 @@ This only works when `display-time' is enabled."
 	      (> (prefix-numeric-value arg) 0))))
     (setq mail-source-report-new-mail on)
     (and mail-source-report-new-mail-timer
-	 (nnheader-cancel-timer mail-source-report-new-mail-timer))
+	 (cancel-timer mail-source-report-new-mail-timer))
     (and mail-source-report-new-mail-idle-timer
-	 (nnheader-cancel-timer mail-source-report-new-mail-idle-timer))
+	 (cancel-timer mail-source-report-new-mail-idle-timer))
     (setq mail-source-report-new-mail-timer nil)
     (setq mail-source-report-new-mail-idle-timer nil)
     (if on

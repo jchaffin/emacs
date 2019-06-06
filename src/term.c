@@ -73,11 +73,10 @@ static void clear_tty_hooks (struct terminal *terminal);
 static void set_tty_hooks (struct terminal *terminal);
 static void dissociate_if_controlling_tty (int fd);
 static void delete_tty (struct terminal *);
-static _Noreturn void maybe_fatal (bool, struct terminal *,
-				   const char *, const char *, ...)
+static AVOID maybe_fatal (bool, struct terminal *, const char *, const char *,
+			  ...)
   ATTRIBUTE_FORMAT_PRINTF (3, 5) ATTRIBUTE_FORMAT_PRINTF (4, 5);
-static _Noreturn void vfatal (const char *str, va_list ap)
-  ATTRIBUTE_FORMAT_PRINTF (1, 0);
+static AVOID vfatal (const char *, va_list) ATTRIBUTE_FORMAT_PRINTF (1, 0);
 
 
 #define OUTPUT(tty, a)                                          \
@@ -3839,6 +3838,7 @@ clear_tty_hooks (struct terminal *terminal)
   terminal->update_begin_hook = 0;
   terminal->update_end_hook = 0;
   terminal->set_terminal_window_hook = 0;
+  terminal->defined_color_hook = 0;
   terminal->mouse_position_hook = 0;
   terminal->frame_rehighlight_hook = 0;
   terminal->frame_raise_lower_hook = 0;
@@ -3882,6 +3882,7 @@ set_tty_hooks (struct terminal *terminal)
   terminal->menu_show_hook = &tty_menu_show;
 #endif
   terminal->set_terminal_window_hook = &tty_set_terminal_window;
+  terminal->defined_color_hook = &tty_defined_color; /* xfaces.c */
   terminal->read_socket_hook = &tty_read_avail_input; /* keyboard.c */
   terminal->delete_frame_hook = &tty_free_frame_resources;
   terminal->delete_terminal_hook = &delete_tty;

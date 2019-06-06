@@ -113,6 +113,7 @@ AC_DEFUN([gl_EARLY],
   # Code from module localtime-buffer:
   # Code from module lstat:
   # Code from module manywarnings:
+  # Code from module memmem-simple:
   # Code from module memrchr:
   # Code from module minmax:
   # Code from module mkostemp:
@@ -195,10 +196,10 @@ AC_DEFUN([gl_INIT],
   gl_source_base='lib'
   gl_FUNC_ACL
   gl_FUNC_ALLOCA
+  gl___BUILTIN_EXPECT
   gl_BYTESWAP
   AC_CHECK_FUNCS_ONCE([readlinkat])
   gl_CLOCK_TIME
-  gl_CLOSE_STREAM
   gl_MODULE_INDICATOR([close-stream])
   gl_COUNT_LEADING_ZEROS
   gl_COUNT_ONE_BITS
@@ -302,6 +303,11 @@ AC_DEFUN([gl_INIT],
     gl_PREREQ_LSTAT
   fi
   gl_SYS_STAT_MODULE_INDICATOR([lstat])
+  gl_FUNC_MEMMEM_SIMPLE
+  if test $HAVE_MEMMEM = 0 || test $REPLACE_MEMMEM = 1; then
+    AC_LIBOBJ([memmem])
+  fi
+  gl_STRING_MODULE_INDICATOR([memmem])
   gl_FUNC_MEMRCHR
   if test $ac_cv_func_memrchr = no; then
     AC_LIBOBJ([memrchr])
@@ -426,7 +432,6 @@ AC_DEFUN([gl_INIT],
   gl_UTIMENS
   AC_C_VARARRAYS
   gl_gnulib_enabled_260941c0e5dc67ec9e87d1fb321c300b=false
-  gl_gnulib_enabled_37f71b604aa9c54446783d80f42fe547=false
   gl_gnulib_enabled_cloexec=false
   gl_gnulib_enabled_dirfd=false
   gl_gnulib_enabled_euidaccess=false
@@ -448,13 +453,6 @@ AC_DEFUN([gl_INIT],
       AC_LIBOBJ([openat-proc])
       gl_gnulib_enabled_260941c0e5dc67ec9e87d1fb321c300b=true
       func_gl_gnulib_m4code_open
-    fi
-  }
-  func_gl_gnulib_m4code_37f71b604aa9c54446783d80f42fe547 ()
-  {
-    if ! $gl_gnulib_enabled_37f71b604aa9c54446783d80f42fe547; then
-      gl___BUILTIN_EXPECT
-      gl_gnulib_enabled_37f71b604aa9c54446783d80f42fe547=true
     fi
   }
   func_gl_gnulib_m4code_cloexec ()
@@ -653,9 +651,6 @@ AC_DEFUN([gl_INIT],
     func_gl_gnulib_m4code_03e0aaad4cb89ca757653bd367a6ccb7
   fi
   if test $ac_use_included_regex = yes; then
-    func_gl_gnulib_m4code_37f71b604aa9c54446783d80f42fe547
-  fi
-  if test $ac_use_included_regex = yes; then
     func_gl_gnulib_m4code_21ee726a3540c09237a8e70c0baf7467
   fi
   if { test $HAVE_DECL_STRTOIMAX = 0 || test $REPLACE_STRTOIMAX = 1; } && test $ac_cv_type_long_long_int = yes; then
@@ -666,7 +661,6 @@ AC_DEFUN([gl_INIT],
   fi
   m4_pattern_allow([^gl_GNULIB_ENABLED_])
   AM_CONDITIONAL([gl_GNULIB_ENABLED_260941c0e5dc67ec9e87d1fb321c300b], [$gl_gnulib_enabled_260941c0e5dc67ec9e87d1fb321c300b])
-  AM_CONDITIONAL([gl_GNULIB_ENABLED_37f71b604aa9c54446783d80f42fe547], [$gl_gnulib_enabled_37f71b604aa9c54446783d80f42fe547])
   AM_CONDITIONAL([gl_GNULIB_ENABLED_cloexec], [$gl_gnulib_enabled_cloexec])
   AM_CONDITIONAL([gl_GNULIB_ENABLED_dirfd], [$gl_gnulib_enabled_dirfd])
   AM_CONDITIONAL([gl_GNULIB_ENABLED_euidaccess], [$gl_gnulib_enabled_euidaccess])
@@ -916,6 +910,7 @@ AC_DEFUN([gl_FILE_LIST], [
   lib/lstat.c
   lib/md5.c
   lib/md5.h
+  lib/memmem.c
   lib/memrchr.c
   lib/minmax.h
   lib/mkostemp.c
@@ -959,6 +954,7 @@ AC_DEFUN([gl_FILE_LIST], [
   lib/stdio.in.h
   lib/stdlib.in.h
   lib/stpcpy.c
+  lib/str-two-way.h
   lib/strftime.h
   lib/string.in.h
   lib/strtoimax.c
@@ -999,7 +995,6 @@ AC_DEFUN([gl_FILE_LIST], [
   m4/builtin-expect.m4
   m4/byteswap.m4
   m4/clock_time.m4
-  m4/close-stream.m4
   m4/count-leading-zeros.m4
   m4/count-one-bits.m4
   m4/count-trailing-zeros.m4
@@ -1049,6 +1044,7 @@ AC_DEFUN([gl_FILE_LIST], [
   m4/manywarnings.m4
   m4/mbstate_t.m4
   m4/md5.m4
+  m4/memmem.m4
   m4/memrchr.m4
   m4/minmax.m4
   m4/mkostemp.m4

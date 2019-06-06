@@ -53,7 +53,7 @@ It is used for TCP/IP devices."
   "When this method name is used, forward all calls to Android Debug Bridge.")
 
 (defcustom tramp-adb-prompt
-  "^[[:digit:]]*|?\\(?:[[:alnum:]\e;[]*@?[[:alnum:]]*[^#\\$]*\\)?[#\\$][[:space:]]"
+  "^[[:digit:]]*|?[[:alnum:]\e;[]*@?[[:alnum:]]*[^#\\$]*[#\\$][[:space:]]"
   "Regexp used as prompt in almquist shell."
   :type 'string
   :version "24.4"
@@ -934,7 +934,6 @@ PRESERVE-UID-GID and PRESERVE-EXTENDED-ATTRIBUTES are completely ignored."
 	    (command (plist-get args :command))
 	    (coding (plist-get args :coding))
 	    (noquery (plist-get args :noquery))
-	    (stop (plist-get args :stop))
 	    (connection-type (plist-get args :connection-type))
 	    (filter (plist-get args :filter))
 	    (sentinel (plist-get args :sentinel))
@@ -976,9 +975,7 @@ PRESERVE-UID-GID and PRESERVE-EXTENDED-ATTRIBUTES are completely ignored."
 		(or (null program) tramp-process-connection-type))
 	       (bmp (and (buffer-live-p buffer) (buffer-modified-p buffer)))
 	       (name1 name)
-	       (i 0)
-	       ;; We do not want to run timers.
-	       timer-list timer-idle-list)
+	       (i 0))
 
 	  (while (get-process name1)
 	    ;; NAME must be unique as process name.
@@ -1010,9 +1007,6 @@ PRESERVE-UID-GID and PRESERVE-EXTENDED-ATTRIBUTES are completely ignored."
 		      ;; Send the command.
 		      (let* ((p (tramp-get-connection-process v)))
                         (tramp-adb-send-command v command nil t) ; nooutput
-			;; Stop process if indicated.
-			(when stop
-			  (stop-process p))
 			;; Set sentinel and filter.
 			(when sentinel
 			  (set-process-sentinel p sentinel))
@@ -1300,8 +1294,11 @@ connection if a previous connection has died for some reason."
 
 ;; Default settings for connection-local variables.
 (defconst tramp-adb-connection-local-default-profile
-  '((shell-file-name . "/system/bin/sh")
-    (shell-command-switch . "-c"))
+  ;; `w32-shell-name' is derived from `shell-file-name'.  Don't let it
+  ;; be confused.
+  (unless (eq system-type 'windows-nt)
+    '((shell-file-name . "/system/bin/sh")
+      (shell-command-switch . "-c")))
   "Default connection-local variables for remote adb connections.")
 
 ;; `connection-local-set-profile-variables' and

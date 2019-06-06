@@ -983,9 +983,10 @@ If specified column is within a character, point goes after that character.
 If it's past end of line, point goes to end of line.
 
 Optional second argument FORCE non-nil means if COLUMN is in the
-middle of a tab character, change it to spaces.
-In addition, if FORCE is t, and the line is too short to reach
-COLUMN, add spaces/tabs to get there.
+middle of a tab character, either change it to spaces (when
+`indent-tabs-mode' is nil), or insert enough spaces before it to reach
+COLUMN (otherwise).  In addition, if FORCE is t, and the line is too short
+to reach COLUMN, add spaces/tabs to get there.
 
 The return value is the current column.  */)
   (Lisp_Object column, Lisp_Object force)
@@ -1968,8 +1969,11 @@ line_number_display_width (struct window *w, int *width, int *pixel_width)
 	 outside the accessible region, in which case we widen the
 	 buffer temporarily.  It could even be beyond the buffer's end
 	 (Org mode's display of source code snippets is known to cause
-	 that), in which case we just punt and start from point instead.  */
-      if (startpos.charpos > Z)
+	 that) or belong to the wrong buffer, in which cases we just
+	 punt and start from point instead.  */
+      if (startpos.charpos > Z
+	  || !(BUFFERP (w->contents)
+	       && XBUFFER (w->contents) == XMARKER (w->start)->buffer))
 	SET_TEXT_POS (startpos, PT, PT_BYTE);
       if (startpos.charpos < BEGV || startpos.charpos > ZV)
 	{

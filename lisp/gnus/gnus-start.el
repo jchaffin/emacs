@@ -583,12 +583,9 @@ Can be used to turn version control on or off."
 
 (defun gnus-subscribe-alphabetically (newgroup)
   "Subscribe new NEWGROUP and insert it in alphabetical order."
-  (let ((groups (cdr gnus-newsrc-alist))
-	before)
-    (while (and (not before) groups)
-      (if (string< newgroup (caar groups))
-	  (setq before (caar groups))
-	(setq groups (cdr groups))))
+  (let ((before (seq-find (lambda (group)
+			    (string< newgroup group))
+			  (cdr gnus-group-list))))
     (gnus-subscribe-newsgroup newgroup before)))
 
 (defun gnus-subscribe-hierarchically (newgroup)
@@ -618,15 +615,15 @@ It is inserted in hierarchical newsgroup order if subscribed.  If not,
 it is killed."
   (if (gnus-y-or-n-p (format "Subscribe new newsgroup %s? " group))
       (gnus-subscribe-hierarchically group)
-    (push group gnus-killed-list)))
+    (gnus-subscribe-killed group)))
 
 (defun gnus-subscribe-zombies (group)
   "Make the new GROUP into a zombie group."
-  (push group gnus-zombie-list))
+  (cl-pushnew group gnus-zombie-list :test #'equal))
 
 (defun gnus-subscribe-killed (group)
   "Make the new GROUP a killed group."
-  (push group gnus-killed-list))
+  (cl-pushnew group gnus-killed-list :test #'equal))
 
 (defun gnus-subscribe-newsgroup (newsgroup &optional next)
   "Subscribe new NEWSGROUP.
@@ -723,11 +720,10 @@ the first newsgroup."
   ;; Kill Gnus buffers.
   (do-auto-save t)
   (dolist (buffer (gnus-buffers))
-    (when (gnus-buffer-exists-p buffer)
-      (with-current-buffer buffer
-	(set-buffer-modified-p nil)
-	(when (local-variable-p 'kill-buffer-hook)
-	  (setq kill-buffer-hook nil))))
+    (with-current-buffer buffer
+      (set-buffer-modified-p nil)
+      (when (local-variable-p 'kill-buffer-hook)
+        (setq kill-buffer-hook nil)))
     (gnus-kill-buffer buffer))
   ;; Remove Gnus frames.
   (gnus-kill-gnus-frames))
@@ -845,8 +841,7 @@ prompt the user for the name of an NNTP server to use."
   "Enter STRING into the dribble buffer.
 If REGEXP is given, lines that match it will be deleted."
   (when (and (not gnus-dribble-ignore)
-	     gnus-dribble-buffer
-	     (buffer-name gnus-dribble-buffer))
+             (buffer-live-p gnus-dribble-buffer))
     (let ((obuf (current-buffer)))
       (set-buffer gnus-dribble-buffer)
       (when regexp
@@ -938,14 +933,13 @@ If REGEXP is given, lines that match it will be deleted."
 	(set-buffer-modified-p nil)))))
 
 (defun gnus-dribble-save ()
-  (when (and gnus-dribble-buffer
-	     (buffer-name gnus-dribble-buffer))
+  (when (buffer-live-p gnus-dribble-buffer)
     (with-current-buffer gnus-dribble-buffer
       (when (> (buffer-size) 0)
 	(save-buffer)))))
 
 (defun gnus-dribble-clear ()
-  (when (gnus-buffer-exists-p gnus-dribble-buffer)
+  (when (gnus-buffer-live-p gnus-dribble-buffer)
     (with-current-buffer gnus-dribble-buffer
       (erase-buffer)
       (set-buffer-modified-p nil)
@@ -1819,7 +1813,8 @@ The info element is shared with the same element of
   (let ((alist gnus-newsrc-alist)
 	(ohashtb gnus-newsrc-hashtb)
 	info method gname rest methods)
-    (setq gnus-newsrc-hashtb (gnus-make-hashtable (length alist)))
+    (setq gnus-newsrc-hashtb (gnus-make-hashtable (length alist))
+	  gnus-group-list nil)
     (setq alist
 	  (setq gnus-newsrc-alist
 		(if (equal (caar gnus-newsrc-alist)
@@ -2146,14 +2141,14 @@ The info element is shared with the same element of
 	    (if (and (stringp (progn
 				(setq group (read cur)
 				      group
-				      (encode-coding-string
-				       (cond ((numberp group)
-					      (number-to-string group))
-					     ((symbolp group)
-					      (symbol-name group))
-					     ((stringp group)
-					      group))
-				       'latin-1))))
+				      (cond ((numberp group)
+					     (number-to-string group))
+					    ((symbolp group)
+					     (encode-coding-string
+					      (symbol-name group)
+					      'latin-1))
+					    ((stringp group)
+					     group)))))
 		     (numberp (setq max (read cur)))
 		     (numberp (setq min (read cur)))
 		     (null (progn
@@ -2728,8 +2723,7 @@ values from `gnus-newsrc-hashtb', and write a new value of
     (save-excursion
       (if (and (or gnus-use-dribble-file gnus-slave)
 	       (not force)
-	       (or (not gnus-dribble-buffer)
-		   (not (buffer-name gnus-dribble-buffer))
+               (or (not (buffer-live-p gnus-dribble-buffer))
 		   (zerop (with-current-buffer gnus-dribble-buffer
 			    (buffer-size)))))
 	  (gnus-message 4 "(No changes need to be saved)")

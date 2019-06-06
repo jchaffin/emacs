@@ -315,7 +315,7 @@ be determined."
 					(buffer-substring
 					 (point-min)
 					 (min (point-max)
-					      (+ (point-min) 256))))))
+					      (+ (point-min) 8192))))))
 		     (setq image-type (cdr image-type))))
 	    (setq type image-type
 		  types nil)
@@ -339,7 +339,7 @@ be determined."
        (file-readable-p file)
        (with-temp-buffer
 	 (set-buffer-multibyte nil)
-	 (insert-file-contents-literally file nil 0 256)
+	 (insert-file-contents-literally file nil 0 8192)
 	 (image-type-from-buffer))))
 
 
@@ -454,10 +454,10 @@ Internal use only."
         ;; plist.  Decouple plist entries where the key matches
         ;; the property.
         (if (eq (cadr image) property)
-            (setcdr image (cddr image))
+            (setcdr image (cdddr image))
           (setq image (cddr image))))
     ;; Just enter the new value.
-    (plist-put (cdr image) property value))
+    (setcdr image (plist-put (cdr image) property value)))
   value)
 
 (defun image-property (image property)
@@ -992,11 +992,12 @@ default is 20%."
     image))
 
 (defun image--get-imagemagick-and-warn ()
-  (unless (or (fboundp 'imagemagick-types) (image-scaling-p))
+  (unless (or (fboundp 'imagemagick-types) (image-transforms-p))
     (error "Cannot rescale images on this terminal"))
   (let ((image (image--get-image)))
     (image-flush image)
-    (when (fboundp 'imagemagick-types)
+    (when (and (fboundp 'imagemagick-types)
+               (not (image-transforms-p)))
       (plist-put (cdr image) :type 'imagemagick))
     image))
 

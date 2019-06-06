@@ -220,7 +220,7 @@ static void
 wset_update_mode_line (struct window *w)
 {
   /* If this window is the selected window on its frame, set the
-     global variable update_mode_lines, so that x_consider_frame_title
+     global variable update_mode_lines, so that gui_consider_frame_title
      will consider this frame's title for redisplay.  */
   Lisp_Object fselected_window = XFRAME (WINDOW_FRAME (w))->selected_window;
 
@@ -3434,7 +3434,7 @@ run_window_configuration_change_hook (struct frame *f)
   XSETFRAME (frame, f);
 
   if (NILP (Vrun_hooks)
-      || !f->can_x_set_window_size
+      || !f->can_set_window_size
       || !f->after_make_frame)
     return;
 
@@ -3763,7 +3763,7 @@ run_window_change_functions (void)
       ptrdiff_t number_of_windows;
 
       if (!FRAME_LIVE_P (f)
-	  || !f->can_x_set_window_size
+	  || !f->can_set_window_size
 	  || !f->after_make_frame
 	  || FRAME_TOOLTIP_P (f)
 	  || !(frame_window_change
@@ -3947,8 +3947,8 @@ set_window_buffer (Lisp_Object window, Lisp_Object buffer,
   b->display_error_modiff = 0;
 
   /* Update time stamps of buffer display.  */
-  if (FIXNUMP (BVAR (b, display_count)))
-    bset_display_count (b, make_fixnum (XFIXNUM (BVAR (b, display_count)) + 1));
+  if (INTEGERP (BVAR (b, display_count)))
+    bset_display_count (b, Fadd1 (BVAR (b, display_count)));
   bset_display_time (b, Fcurrent_time ());
 
   w->window_end_pos = 0;
@@ -4089,7 +4089,7 @@ displaying that buffer.  */)
       return Qt;
     }
 
-  if (WINDOWP (object))
+  if (WINDOW_LIVE_P (object))
     {
       struct window *w = XWINDOW (object);
       mark_window_display_accurate (object, false);
@@ -4683,7 +4683,7 @@ resize_frame_windows (struct frame *f, int size, bool horflag, bool pixelwise)
   int unit = horflag ? FRAME_COLUMN_WIDTH (f) : FRAME_LINE_HEIGHT (f);
 
   /* Don't let the size drop below one unit.  This is more comforting
-     when we are called from x_set_tool_bar_lines since the latter may
+     when we are called from *_set_tool_bar_lines since the latter may
      have implicitly given us a zero or negative height.  */
   if (pixelwise)
     {
@@ -6867,8 +6867,8 @@ the return value is nil.  Otherwise the value is t.  */)
 	    call1 (Qrecord_window_buffer, window);
 	}
 
-      /* Disallow x_set_window_size, temporarily.  */
-      f->can_x_set_window_size = false;
+      /* Disallow set_window_size_hook, temporarily.  */
+      f->can_set_window_size = false;
       /* The mouse highlighting code could get screwed up
 	 if it runs during this.  */
       block_input ();
@@ -7072,9 +7072,9 @@ the return value is nil.  Otherwise the value is t.  */)
 	if (NILP (leaf_windows[i]->contents))
 	  free_window_matrices (leaf_windows[i]);
 
-      /* Allow x_set_window_size again and apply frame size changes if
-	 needed.  */
-      f->can_x_set_window_size = true;
+      /* Allow set_window_size_hook again and apply frame size changes
+	 if needed.  */
+      f->can_set_window_size = true;
       adjust_frame_size (f, -1, -1, 1, false, Qset_window_configuration);
 
       adjust_frame_glyphs (f);

@@ -215,32 +215,10 @@ json_has_suffix (const char *string, const char *suffix)
 
 #endif
 
-/* Create a multibyte Lisp string from the UTF-8 string in
-   [DATA, DATA + SIZE).  If the range [DATA, DATA + SIZE) does not
-   contain a valid UTF-8 string, an unspecified string is returned.
-   Note that all callers below either pass only value UTF-8 strings or
-   use this function for formatting error messages; in the latter case
-   correctness isn't critical.  */
-
-static Lisp_Object
-json_make_string (const char *data, ptrdiff_t size)
-{
-  return code_convert_string (make_specified_string (data, -1, size, false),
-                              Qutf_8_unix, Qt, false, true, true);
-}
-
-/* Create a multibyte Lisp string from the NUL-terminated UTF-8
-   string beginning at DATA.  If the string is not a valid UTF-8
-   string, an unspecified string is returned.  Note that all callers
-   below either pass only value UTF-8 strings or use this function for
+/* Note that all callers of make_string_from_utf8 and build_string_from_utf8
+   below either pass only value UTF-8 strings or use the functionf for
    formatting error messages; in the latter case correctness isn't
    critical.  */
-
-static Lisp_Object
-json_build_string (const char *data)
-{
-  return json_make_string (data, strlen (data));
-}
 
 /* Return a unibyte string containing the sequence of UTF-8 encoding
    units of the UTF-8 representation of STRING.  If STRING does not
@@ -255,7 +233,7 @@ json_encode (Lisp_Object string)
   return code_convert_string (string, Qutf_8_unix, Qt, true, true, true);
 }
 
-static _Noreturn void
+static AVOID
 json_out_of_memory (void)
 {
   xsignal0 (Qjson_out_of_memory);
@@ -263,7 +241,7 @@ json_out_of_memory (void)
 
 /* Signal a Lisp error corresponding to the JSON ERROR.  */
 
-static _Noreturn void
+static AVOID
 json_parse_error (const json_error_t *error)
 {
   Lisp_Object symbol;
@@ -289,9 +267,11 @@ json_parse_error (const json_error_t *error)
     symbol = Qjson_parse_error;
 #endif
   xsignal (symbol,
-           list5 (json_build_string (error->text),
-                  json_build_string (error->source), make_fixed_natnum (error->line),
-                  make_fixed_natnum (error->column), make_fixed_natnum (error->position)));
+           list5 (build_string_from_utf8 (error->text),
+                  build_string_from_utf8 (error->source),
+		  INT_TO_INTEGER (error->line),
+                  INT_TO_INTEGER (error->column),
+		  INT_TO_INTEGER (error->position)));
 }
 
 static void
@@ -499,7 +479,7 @@ lisp_to_json (Lisp_Object lisp, struct json_configuration *conf)
       intmax_t low = TYPE_MINIMUM (json_int_t);
       intmax_t high = TYPE_MAXIMUM (json_int_t);
       intmax_t value;
-      if (! integer_to_intmax (lisp, &value) || value < low || high < value)
+      if (! (integer_to_intmax (lisp, &value) && low <= value && value <= high))
         args_out_of_range_3 (lisp, make_int (low), make_int (high));
       return json_check (json_integer (value));
     }
@@ -634,7 +614,7 @@ usage: (json-serialize OBJECT &rest ARGS)  */)
     json_out_of_memory ();
   record_unwind_protect_ptr (json_free, string);
 
-  return unbind_to (count, json_build_string (string));
+  return unbind_to (count, build_string_from_utf8 (string));
 }
 
 struct json_buffer_and_size
@@ -665,6 +645,20 @@ json_insert (void *data)
   return Qnil;
 }
 
+static Lisp_Object
+json_handle_nonlocal_exit (enum nonlocal_exit type, Lisp_Object data)
+{
+  switch (type)
+    {
+    case NONLOCAL_EXIT_SIGNAL:
+      return data;
+    case NONLOCAL_EXIT_THROW:
+      return Fcons (Qno_catch, data);
+    default:
+      eassume (false);
+    }
+}
+
 struct json_insert_data
 {
   /* This tracks how many bytes were inserted by the callback since
@@ -687,7 +681,8 @@ json_insert_callback (const char *buffer, size_t size, void *data)
   struct json_insert_data *d = data;
   struct json_buffer_and_size buffer_and_size
     = {.buffer = buffer, .size = size, .inserted_bytes = d->inserted_bytes};
-  d->error = internal_catch_all (json_insert, &buffer_and_size, Fidentity);
+  d->error = internal_catch_all (json_insert, &buffer_and_size,
+                                 json_handle_nonlocal_exit);
   d->inserted_bytes = buffer_and_size.inserted_bytes;
   return NILP (d->error) ? 0 : -1;
 }
@@ -826,8 +821,8 @@ json_to_lisp (json_t *json, struct json_configuration *conf)
     case JSON_REAL:
       return make_float (json_real_value (json));
     case JSON_STRING:
-      return json_make_string (json_string_value (json),
-                               json_string_length (json));
+      return make_string_from_utf8 (json_string_value (json),
+				    json_string_length (json));
     case JSON_ARRAY:
       {
         if (++lisp_eval_depth > max_lisp_eval_depth)
@@ -886,7 +881,7 @@ json_to_lisp (json_t *json, struct json_configuration *conf)
               json_t *value;
               json_object_foreach (json, key_str, value)
                 {
-                  Lisp_Object key = json_build_string (key_str);
+                  Lisp_Object key = build_string_from_utf8 (key_str);
                   EMACS_UINT hash;
                   ptrdiff_t i = hash_lookup (h, key, &hash);
                   /* Keys in JSON objects are unique, so the key can't
@@ -903,7 +898,8 @@ json_to_lisp (json_t *json, struct json_configuration *conf)
               json_t *value;
               json_object_foreach (json, key_str, value)
                 {
-                  Lisp_Object key = Fintern (json_build_string (key_str), Qnil);
+                  Lisp_Object key
+		    = Fintern (build_string_from_utf8 (key_str), Qnil);
                   result
                     = Fcons (Fcons (key, json_to_lisp (value, conf)),
                              result);

@@ -1070,12 +1070,18 @@ possibilities can be narrowed to specific indentation points."
         (`(,(or :after-line
                 :after-comment
                 :inside-string
-                :after-backslash
-                :inside-paren-at-closing-paren
-                :inside-paren-at-closing-nested-paren) . ,start)
+                :after-backslash) . ,start)
          ;; Copy previous indentation.
          (goto-char start)
          (current-indentation))
+        (`(,(or :inside-paren-at-closing-paren
+                :inside-paren-at-closing-nested-paren) . ,start)
+         (goto-char (+ 1 start))
+         (if (looking-at "[ \t]*\\(?:#\\|$\\)")
+             ;; Copy previous indentation.
+             (current-indentation)
+           ;; Align with opening paren.
+           (current-column)))
         (`(:inside-docstring . ,start)
          (let* ((line-indentation (current-indentation))
                 (base-indent (progn
@@ -2003,7 +2009,7 @@ position, else returns nil."
 It should not contain a caret (^) at the beginning."
   :type 'string)
 
-(defcustom python-shell-prompt-block-regexp "\\.\\.\\. "
+(defcustom python-shell-prompt-block-regexp "\\.\\.\\.:? "
   "Regular expression matching block input prompt of Python shell.
 It should not contain a caret (^) at the beginning."
   :type 'string)
@@ -2303,15 +2309,16 @@ detection and just returns nil."
                          ;; carriage returns in unbuffered mode.
                          (let ((inhibit-eol-conversion (getenv "PYTHONUNBUFFERED")))
                            (python-shell--save-temp-file code))))
-                    ;; Use `process-file' as it is remote-host friendly.
-                    (process-file
-                     interpreter
-                     code-file
-                     '(t nil)
-                     nil
-                     interpreter-arg)
-                    ;; Try to cleanup
-                    (delete-file code-file)))
+                    (unwind-protect
+                        ;; Use `process-file' as it is remote-host friendly.
+                        (process-file
+                         interpreter
+                         code-file
+                         '(t nil)
+                         nil
+                         interpreter-arg)
+                      ;; Try to cleanup
+                      (delete-file code-file))))
                 (buffer-string)))
              (prompts
               (catch 'prompts

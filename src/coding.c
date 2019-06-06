@@ -302,12 +302,6 @@ encode_coding_XXX (struct coding_system *coding)
 
 Lisp_Object Vcoding_system_hash_table;
 
-/* Format of end-of-line decided by system.  This is Qunix on
-   Unix and Mac, Qdos on DOS/Windows.
-   This has an effect only for external encoding (i.e. for output to
-   file and process), not for in-buffer or Lisp string encoding.  */
-static Lisp_Object system_eol_type;
-
 /* Coding-systems are handed between Emacs Lisp programs and C internal
    routines by the following three variables.  */
 /* Coding system to be used to encode text for terminal display when
@@ -5972,8 +5966,7 @@ raw_text_coding_system_p (struct coding_system *coding)
 
 /* If CODING_SYSTEM doesn't specify end-of-line format, return one of
    the subsidiary that has the same eol-spec as PARENT (if it is not
-   nil and specifies end-of-line format) or the system's setting
-   (system_eol_type).  */
+   nil and specifies end-of-line format) or the system's setting.  */
 
 Lisp_Object
 coding_inherit_eol_type (Lisp_Object coding_system, Lisp_Object parent)
@@ -5988,20 +5981,24 @@ coding_inherit_eol_type (Lisp_Object coding_system, Lisp_Object parent)
   eol_type = AREF (spec, 2);
   if (VECTORP (eol_type))
     {
-      Lisp_Object parent_eol_type;
+      /* Format of end-of-line decided by system.
+	 This is Qunix on Unix and Mac, Qdos on DOS/Windows.
+	 This has an effect only for external encoding (i.e., for output to
+	 file and process), not for in-buffer or Lisp string encoding.  */
+      Lisp_Object system_eol_type = Qunix;
+      #ifdef DOS_NT
+       system_eol_type = Qdos;
+      #endif
 
+      Lisp_Object parent_eol_type = system_eol_type;
       if (! NILP (parent))
 	{
-	  Lisp_Object parent_spec;
-
 	  CHECK_CODING_SYSTEM (parent);
-	  parent_spec = CODING_SYSTEM_SPEC (parent);
-	  parent_eol_type = AREF (parent_spec, 2);
-	  if (VECTORP (parent_eol_type))
-	    parent_eol_type = system_eol_type;
+	  Lisp_Object parent_spec = CODING_SYSTEM_SPEC (parent);
+	  Lisp_Object pspec_type = AREF (parent_spec, 2);
+	  if (!VECTORP (pspec_type))
+	    parent_eol_type = pspec_type;
 	}
-      else
-	parent_eol_type = system_eol_type;
       if (EQ (parent_eol_type, Qunix))
 	coding_system = AREF (eol_type, 0);
       else if (EQ (parent_eol_type, Qdos))
@@ -6356,6 +6353,29 @@ utf8_string_p (Lisp_Object string)
   return check_utf_8 (&coding) != -1;
 }
 
+/* Like make_string, but always returns a multibyte Lisp string, and
+   avoids decoding if TEXT encoded in UTF-8.  */
+
+Lisp_Object
+make_string_from_utf8 (const char *text, ptrdiff_t nbytes)
+{
+  ptrdiff_t chars, bytes;
+  parse_str_as_multibyte ((const unsigned char *) text, nbytes,
+			  &chars, &bytes);
+  /* If TEXT is a valid UTF-8 string, we can convert it to a Lisp
+     string directly.  Otherwise, we need to decode it.  */
+  if (chars == nbytes || bytes == nbytes)
+    return make_specified_string (text, chars, nbytes, true);
+  else
+    {
+      struct coding_system coding;
+      setup_coding_system (Qutf_8_unix, &coding);
+      coding.mode |= CODING_MODE_LAST_BLOCK;
+      coding.source = (const unsigned char *) text;
+      decode_coding_object (&coding, Qnil, 0, 0, nbytes, nbytes, Qt);
+      return coding.dst_object;
+    }
+}
 
 /* Detect how end-of-line of a text of length SRC_BYTES pointed by
    SOURCE is encoded.  If CATEGORY is one of
@@ -7783,15 +7803,22 @@ encode_coding (struct coding_system *coding)
   SAFE_FREE ();
 }
 
+/* Code-conversion operations use internal buffers.  There's a single
+   reusable buffer, which is created the first time it is needed, and
+   then never killed.  When this reusable buffer is being used, the
+   reused_workbuf_in_use flag is set.  If we need another conversion
+   buffer while the reusable one is in use (e.g., if code-conversion
+   is reentered when another code-conversion is in progress), we
+   create temporary buffers using the name of the reusable buffer as
+   the base name, see code_conversion_save below.  These temporary
+   buffers are killed when the code-conversion operations that use
+   them return, see code_conversion_restore below.  */
 
-/* Name (or base name) of work buffer for code conversion.  */
+/* A string that serves as name of the reusable work buffer, and as base
+   name of temporary work buffers used for code-conversion operations.  */
 Lisp_Object Vcode_conversion_workbuf_name;
 
-/* A working buffer used by the top level conversion.  Once it is
-   created, it is never destroyed.  It has the name
-   Vcode_conversion_workbuf_name.  The other working buffers are
-   destroyed after the use is finished, and their names are modified
-   versions of Vcode_conversion_workbuf_name.  */
+/* The reusable working buffer, created once and never killed.  */
 static Lisp_Object Vcode_conversion_reused_workbuf;
 
 /* True iff Vcode_conversion_reused_workbuf is already in use.  */
@@ -9382,7 +9409,8 @@ START and END are buffer positions.
 Optional 4th arguments DESTINATION specifies where the decoded text goes.
 If nil, the region between START and END is replaced by the decoded text.
 If buffer, the decoded text is inserted in that buffer after point (point
-does not move).
+does not move).  If that buffer is unibyte, it receives the individual
+bytes of the internal representation of the decoded text.
 In those cases, the length of the decoded text is returned.
 If DESTINATION is t, the decoded text is returned.
 
@@ -9540,7 +9568,9 @@ if the decoding operation is trivial.
 
 Optional fourth arg BUFFER non-nil means that the decoded text is
 inserted in that buffer after point (point does not move).  In this
-case, the return value is the length of the decoded text.
+case, the return value is the length of the decoded text.  If that
+buffer is unibyte, it receives the individual bytes of the internal
+representation of the decoded text.
 
 This function sets `last-coding-system-used' to the precise coding system
 used (which may be different from CODING-SYSTEM if CODING-SYSTEM is
@@ -11305,13 +11335,6 @@ internal character representation.  */);
 
   for (int i = 0; i < coding_category_max; i++)
     Fset (AREF (Vcoding_category_table, i), Qno_conversion);
-
-#if defined (DOS_NT)
-  system_eol_type = Qdos;
-#else
-  system_eol_type = Qunix;
-#endif
-  staticpro (&system_eol_type);
 
   pdumper_do_now_and_after_load (reset_coding_after_pdumper_load);
 }

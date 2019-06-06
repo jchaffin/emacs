@@ -1743,8 +1743,7 @@ already.  If INFO-UNCHANGED is non-nil, dribble buffer is not updated."
 	     gnus-tmp-header		;Dummy binding for user-defined formats
 	     ;; Get the resulting string.
 	     (modified
-	      (and gnus-dribble-buffer
-		   (buffer-name gnus-dribble-buffer)
+              (and (buffer-live-p gnus-dribble-buffer)
 		   (buffer-modified-p gnus-dribble-buffer)
 		   (with-current-buffer gnus-dribble-buffer
 		     (not (zerop (buffer-size))))))
@@ -2549,37 +2548,33 @@ If PROMPT (the prefix) is a number, use the prompt specified in
     (gnus-group-position-point)))
 
 (defun gnus-group-goto-group (group &optional far test-marked)
-  "Goto to newsgroup GROUP.
+  "Go to newsgroup GROUP.
 If FAR, it is likely that the group is not on the current line.
-If TEST-MARKED, the line must be marked."
+If TEST-MARKED, the line must be marked.
+
+Return nil if GROUP is not found."
   (when group
-    (let ((start (point))
-	  (active (and (or
-                        ;; Some kind of group may be only there.
-                        (gnus-active group)
-                        ;; All groups (but with exception) are there.
-                        (gnus-group-entry group))
-		       group)))
+    (let ((start (point)))
       (beginning-of-line)
       (cond
        ;; It's quite likely that we are on the right line, so
        ;; we check the current line first.
        ((and (not far)
-	     (equal (get-text-property (point) 'gnus-group) active)
+	     (equal (get-text-property (point) 'gnus-group) group)
 	     (or (not test-marked) (gnus-group-mark-line-p)))
 	(point))
        ;; Previous and next line are also likely, so we check them as well.
        ((and (not far)
 	     (save-excursion
 	       (forward-line -1)
-	       (and (equal (get-text-property (point) 'gnus-group) active)
+	       (and (equal (get-text-property (point) 'gnus-group) group)
 		    (or (not test-marked) (gnus-group-mark-line-p)))))
 	(forward-line -1)
 	(point))
        ((and (not far)
 	     (save-excursion
 	       (forward-line 1)
-	       (and (equal (get-text-property (point) 'gnus-group) active)
+	       (and (equal (get-text-property (point) 'gnus-group) group)
 		    (or (not test-marked) (gnus-group-mark-line-p)))))
 	(forward-line 1)
 	(point))
@@ -2588,7 +2583,7 @@ If TEST-MARKED, the line must be marked."
 	(let (found)
 	  (while (and (not found)
 		      (gnus-text-property-search
-		       'gnus-group active 'forward 'goto))
+		       'gnus-group group 'forward 'goto))
 	    (if (gnus-group-mark-line-p)
 		(setq found t)
 	      (forward-line 1)))
@@ -2596,7 +2591,7 @@ If TEST-MARKED, the line must be marked."
        (t
 	;; Search through the entire buffer.
 	(if (gnus-text-property-search
-	     'gnus-group active nil 'goto)
+	     'gnus-group group nil 'goto)
 	    (point)
 	  (goto-char start)
 	  nil))))))
@@ -3304,21 +3299,31 @@ If REVERSE (the prefix), reverse the sorting order."
   (funcall gnus-group-sort-alist-function
 	   (gnus-make-sort-function func) reverse)
   (gnus-group-unmark-all-groups)
+  ;; Redisplay all groups according to the newly-sorted order of
+  ;; `gnus-group-list'.
   (gnus-group-list-groups)
   (gnus-dribble-touch))
 
 (defun gnus-group-sort-flat (func reverse)
-  ;; We peel off the dummy group from the alist.
+  "Sort groups in a flat list using sorting function FUNC.
+If REVERSE is non-nil, reverse the sort order.
+
+This function sets a new value for `gnus-group-list'; its return
+value is disregarded."
   (when func
-    (when (equal (gnus-info-group (car gnus-newsrc-alist)) "dummy.group")
-      (pop gnus-newsrc-alist))
-    ;; Do the sorting.
-    (setq gnus-newsrc-alist
-	  (sort gnus-newsrc-alist func))
-    (when reverse
-      (setq gnus-newsrc-alist (nreverse gnus-newsrc-alist)))
-    ;; Regenerate the hash table.
-    (gnus-make-hashtable-from-newsrc-alist)))
+    (let* ((groups (remove "dummy.group" gnus-group-list))
+	   (sorted-infos
+	    (sort (mapcar (lambda (g)
+			    (gnus-get-info g))
+			  groups)
+		  func)))
+      (setq gnus-group-list
+	    (mapcar (lambda (i)
+		      (gnus-info-group i))
+		    sorted-infos))
+      (when reverse
+	(setq gnus-group-list (nreverse gnus-group-list)))
+      (setq gnus-group-list (cons "dummy.group" gnus-group-list)))))
 
 (defun gnus-group-sort-groups-by-alphabet (&optional reverse)
   "Sort the group buffer alphabetically by group name.
@@ -3381,27 +3386,26 @@ If REVERSE, sort in reverse order."
     (gnus-dribble-touch)))
 
 (defun gnus-group-sort-selected-flat (groups func reverse)
-  (let (entries infos)
-    ;; First find all the group entries for these groups.
-    (while groups
-      (push (nthcdr 2 (gnus-group-entry (pop groups)))
-	    entries))
-    ;; Then sort the infos.
-    (setq infos
-	  (sort
-	   (mapcar
-	    (lambda (entry) (car entry))
-	    (setq entries (nreverse entries)))
-	   func))
+  "Sort only the selected GROUPS, using FUNC.
+If REVERSE is non-nil, reverse the sorting."
+  (let ((infos (sort
+		(mapcar (lambda (g)
+			  (gnus-get-info g))
+			groups)
+		func))
+	sorted-groups)
     (when reverse
       (setq infos (nreverse infos)))
-    ;; Go through all the infos and replace the old entries
-    ;; with the new infos.
-    (while infos
-      (setcar (car entries) (pop infos))
-      (pop entries))
-    ;; Update the hashtable.
-    (gnus-make-hashtable-from-newsrc-alist)))
+    (setq sorted-groups (mapcar (lambda (i) (gnus-info-group i)) infos))
+
+    ;; Find the original locations of GROUPS in `gnus-group-list', and
+    ;; replace each one, in order, with a group from SORTED-GROUPS.
+    (dolist (i (sort (mapcar (lambda (g)
+			       (seq-position gnus-group-list g))
+			     groups)
+		     #'<))
+      (setf (nth i gnus-group-list)
+	    (pop sorted-groups)))))
 
 (defun gnus-group-sort-selected-groups-by-alphabet (&optional n reverse)
   "Sort the group buffer alphabetically by group name.
@@ -4137,20 +4141,19 @@ If DONT-SCAN is non-nil, scan non-activated groups as well."
   (when (not (or gnus-description-hashtb
 		 (gnus-read-all-descriptions-files)))
     (error "Couldn't request descriptions file"))
-  (let ((buffer-read-only nil)
-	(groups (sort (hash-table-keys gnus-description-hashtb)))
-	b)
+  (let ((buffer-read-only nil))
     (erase-buffer)
-    (dolist (group groups)
-      (setq b (point))
-      (let ((charset (gnus-group-name-charset nil group)))
+    (dolist (group (sort (hash-table-keys gnus-description-hashtb) #'string<))
+      (let ((b (point))
+            (desc (gethash group gnus-description-hashtb))
+            (charset (gnus-group-name-charset nil group)))
 	(insert (format "      *: %-20s %s\n"
 			(gnus-group-name-decode group charset)
-			(gnus-group-name-decode group charset))))
-      (add-text-properties
-       b (1+ b) (list 'gnus-group (intern group gnus-description-hashtb)
-		      'gnus-unread t 'gnus-marked nil
-		      'gnus-level (1+ gnus-level-subscribed))))
+                        (gnus-group-name-decode desc charset)))
+        (add-text-properties
+         b (1+ b) (list 'gnus-group group
+                        'gnus-unread t 'gnus-marked nil
+                        'gnus-level (1+ gnus-level-subscribed)))))
     (goto-char (point-min))
     (gnus-group-position-point)))
 
@@ -4358,15 +4361,13 @@ The hook `gnus-exit-gnus-hook' is called before actually exiting."
 
 (defun gnus--abort-on-unsaved-message-buffers ()
   (dolist (buffer (gnus-buffers))
-    (when (gnus-buffer-exists-p buffer)
-      (with-current-buffer buffer
-	(when (and (derived-mode-p 'message-mode)
-		   (buffer-modified-p)
-		   (not (y-or-n-p
-			 (format "Message buffer %s unsaved, continue exit? "
-				 (buffer-name)))))
-	  (error "Gnus exit aborted due to unsaved %s buffer"
-		 (buffer-name)))))))
+    (with-current-buffer buffer
+      (when (and (derived-mode-p 'message-mode)
+                 (buffer-modified-p)
+                 (not (y-or-n-p
+                       (format "Message buffer %s unsaved, continue exit? "
+                               buffer))))
+        (error "Gnus exit aborted due to unsaved buffer %s" buffer)))))
 
 (defun gnus-group-quit ()
   "Quit reading news without updating .newsrc.eld or .newsrc.
@@ -4750,8 +4751,7 @@ Compacting group %s... (this may take a long time)"
       ;; Invalidate the "original article" buffer which might be out of date.
       ;; #### NOTE: Yes, this might be a bit rude, but since compaction
       ;; #### will not happen very often, I think this is acceptable.
-      (let ((original (get-buffer gnus-original-article-buffer)))
-	(and original (gnus-kill-buffer original)))
+      (gnus-kill-buffer gnus-original-article-buffer)
       ;; Update the group line to reflect new information (art number etc).
       (gnus-group-update-group-line))))
 

@@ -104,11 +104,23 @@ and the output should go to `standard-output'.")
         (with-demoted-errors "while loading: %S"
           (load file 'noerror 'nomessage))))))
 
+(defcustom help-enable-completion-auto-load t
+  "Whether completion for Help commands can perform autoloading.
+If non-nil, whenever invoking completion for `describe-function'
+or `describe-variable' load files that might contain definitions
+with the current prefix.  The files are chosen according to
+`definition-prefixes'."
+  :type 'boolean
+  :group 'help
+  :version "26.3")
+
 (defun help--symbol-completion-table (string pred action)
-  (let ((prefixes (radix-tree-prefixes (help-definition-prefixes) string)))
-    (help--load-prefixes prefixes))
+  (when help-enable-completion-auto-load
+    (let ((prefixes (radix-tree-prefixes (help-definition-prefixes) string)))
+      (help--load-prefixes prefixes)))
   (let ((prefix-completions
-         (mapcar #'intern (all-completions string definition-prefixes))))
+         (and help-enable-completion-auto-load
+              (mapcar #'intern (all-completions string definition-prefixes)))))
     (complete-with-action action obarray string
                           (if pred (lambda (sym)
                                      (or (funcall pred sym)
@@ -572,7 +584,7 @@ FILE is the file where FUNCTION was probably defined."
             "including the match data.\n")))
 
 (defun help-fns--first-release (symbol)
-  "Return the likely first release that defined SYMBOL."
+  "Return the likely first release that defined SYMBOL, or nil."
   ;; Code below relies on the etc/NEWS* files.
   ;; FIXME: Maybe we should also use the */ChangeLog* files when available.
   ;; FIXME: Maybe we should also look for announcements of the addition
@@ -580,6 +592,7 @@ FILE is the file where FUNCTION was probably defined."
   (let* ((name (symbol-name symbol))
          (re (concat "\\_<" (regexp-quote name) "\\_>"))
          (news (directory-files data-directory t "\\`NEWS.[1-9]"))
+         (place nil)
          (first nil))
     (with-temp-buffer
       (dolist (f news)
@@ -588,17 +601,21 @@ FILE is the file where FUNCTION was probably defined."
         (goto-char (point-min))
         (search-forward "\n*")
         (while (re-search-forward re nil t)
-          (save-excursion
-            ;; Almost all entries are of the form "* ... in Emacs NN.MM."
-            ;; but there are also a few in the form "* Emacs NN.MM is a bug
-            ;; fix release ...".
-            (if (not (re-search-backward "^\\*.* Emacs \\([0-9.]+[0-9]\\)"
-                                         nil t))
-                (message "Ref found in non-versioned section in %S"
-                         (file-name-nondirectory f))
-              (let ((version (match-string 1)))
-                (when (or (null first) (version< version first))
-                  (setq first version))))))))
+          (let ((pos (match-beginning 0)))
+            (save-excursion
+              ;; Almost all entries are of the form "* ... in Emacs NN.MM."
+              ;; but there are also a few in the form "* Emacs NN.MM is a bug
+              ;; fix release ...".
+              (if (not (re-search-backward "^\\*.* Emacs \\([0-9.]+[0-9]\\)"
+                                           nil t))
+                  (message "Ref found in non-versioned section in %S"
+                           (file-name-nondirectory f))
+                (let ((version (match-string 1)))
+                  (when (or (null first) (version< version first))
+                    (setq place (list f pos))
+                    (setq first version)))))))))
+    (when first
+      (make-text-button first nil 'type 'help-news 'help-args place))
     first))
 
 (add-hook 'help-fns-describe-function-functions
@@ -608,8 +625,9 @@ FILE is the file where FUNCTION was probably defined."
 (defun help-fns--mention-first-release (object)
   (let ((first (if (symbolp object) (help-fns--first-release object))))
     (when first
-      (princ (format "  Probably introduced at or before Emacs version %s.\n"
-                     first)))))
+      (with-current-buffer standard-output
+        (insert (format "  Probably introduced at or before Emacs version %s.\n"
+                        first))))))
 
 (defun help-fns-short-filename (filename)
   (let* ((abbrev (abbreviate-file-name filename))

@@ -27,6 +27,7 @@
 
 (require 'ert)
 (require 'cl-lib)
+(require 'subr-x)
 (require 'bytecomp)
 
 ;;; Code:
@@ -296,7 +297,21 @@
        ((eq variable 'default)
 	(message "equal"))
        (t
-	(message "not equal")))))
+	(message "not equal"))))
+    ;; Bug#35770
+    (let ((x 'a)) (cond ((eq x 'a) 'correct)
+                        ((eq x 'b) 'incorrect)
+                        ((eq x 'a) 'incorrect)
+                        ((eq x 'c) 'incorrect)))
+    (let ((x #x10000000000000000))
+      (cond ((eql x #x10000000000000000) 'correct)
+            ((eql x #x10000000000000001) 'incorrect)
+            ((eql x #x10000000000000000) 'incorrect)
+            ((eql x #x10000000000000002) 'incorrect)))
+    (let ((x "a")) (cond ((equal x "a") 'correct)
+                         ((equal x "b") 'incorrect)
+                         ((equal x "a") 'incorrect)
+                         ((equal x "c") 'incorrect))))
   "List of expression for test.
 Each element will be executed by interpreter and with
 bytecompiled code, and their results compared.")
@@ -441,6 +456,20 @@ Subtests signal errors if something goes wrong."
     ;; Should not warn that mt--test2 is not known to be defined.
     (should-not (re-search-forward "my--test2" nil t))))
 
+(ert-deftest bytecomp-warn-wrong-args ()
+  (with-current-buffer (get-buffer-create "*Compile-Log*")
+    (let ((inhibit-read-only t)) (erase-buffer))
+    (byte-compile '(remq 1 2 3))
+    (ert-info ((buffer-string) :prefix "buffer: ")
+      (should (re-search-forward "remq.*3.*2")))))
+
+(ert-deftest bytecomp-warn-wrong-args-subr ()
+  (with-current-buffer (get-buffer-create "*Compile-Log*")
+    (let ((inhibit-read-only t)) (erase-buffer))
+    (byte-compile '(safe-length 1 2 3))
+    (ert-info ((buffer-string) :prefix "buffer: ")
+      (should (re-search-forward "safe-length.*3.*1")))))
+
 (ert-deftest test-eager-load-macro-expansion ()
   (test-byte-comp-compile-and-load nil
     '(progn (defmacro abc (arg) 1) (defun def () (abc 2))))
@@ -540,7 +569,9 @@ literals (Bug#20852)."
         (should (equal (cdr err)
                        (list (concat "unescaped character literals "
                                      "`?\"', `?(', `?)', `?;', `?[', `?]' "
-                                     "detected!"))))))))
+                                     "detected, "
+                                     "`?\\\"', `?\\(', `?\\)', `?\\;', `?\\[', "
+                                     "`?\\]' expected!"))))))))
 
 (ert-deftest bytecomp-tests--old-style-backquotes ()
   "Check that byte compiling warns about old-style backquotes."
@@ -610,6 +641,44 @@ literals (Bug#20852)."
             (should-not (search-forward "some-undefined-function" nil t))))
       (if (buffer-live-p byte-compile-log-buffer)
           (kill-buffer byte-compile-log-buffer)))))
+
+(ert-deftest bytecomp-test--switch-duplicates ()
+  "Check that duplicates in switches are eliminated correctly (bug#35770)."
+  (dolist (params
+           '(((lambda (x)
+                (cond ((eq x 'a) 111)
+                      ((eq x 'b) 222)
+                      ((eq x 'a) 333)
+                      ((eq x 'c) 444)))
+              (a b c)
+              string<)
+             ((lambda (x)
+                (cond ((eql x #x10000000000000000) 111)
+                      ((eql x #x10000000000000001) 222)
+                      ((eql x #x10000000000000000) 333)
+                      ((eql x #x10000000000000002) 444)))
+              (#x10000000000000000 #x10000000000000001 #x10000000000000002)
+              <)
+             ((lambda (x)
+                (cond ((equal x "a") 111)
+                      ((equal x "b") 222)
+                      ((equal x "a") 333)
+                      ((equal x "c") 444)))
+              ("a" "b" "c")
+              string<)))
+    (let* ((lisp (nth 0 params))
+           (keys (nth 1 params))
+           (lessp (nth 2 params))
+           (bc (byte-compile lisp))
+           (lap (byte-decompile-bytecode (aref bc 1) (aref bc 2)))
+           ;; Assume the first constant is the switch table.
+           (table (cadr (assq 'byte-constant lap))))
+      (should (hash-table-p table))
+      (should (equal (sort (hash-table-keys table) lessp) keys))
+      (should (member '(byte-constant 111) lap))
+      (should (member '(byte-constant 222) lap))
+      (should-not (member '(byte-constant 333) lap))
+      (should (member '(byte-constant 444) lap)))))
 
 ;; Local Variables:
 ;; no-byte-compile: t

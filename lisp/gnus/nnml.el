@@ -2,7 +2,7 @@
 
 ;; Copyright (C) 1995-2019 Free Software Foundation, Inc.
 
-;; Authors: Didier Verna <didier@xemacs.org> (adding compaction)
+;; Authors: Didier Verna <didier@didierverna.net> (adding compaction)
 ;;	Simon Josefsson <simon@josefsson.org>
 ;;	Lars Magne Ingebrigtsen <larsi@gnus.org>
 ;;	Masanobu UMEDA <umerin@flab.flab.fujitsu.junet>
@@ -772,7 +772,7 @@ article number.  This function is called narrowed to an article."
 (defun nnml-save-incremental-nov ()
   (save-excursion
     (while nnml-incremental-nov-buffer-alist
-      (when (buffer-name (cdar nnml-incremental-nov-buffer-alist))
+      (when (buffer-live-p (cdar nnml-incremental-nov-buffer-alist))
 	(set-buffer (cdar nnml-incremental-nov-buffer-alist))
 	(when (buffer-modified-p)
 	  (nnmail-write-region (point-min) (point-max)
@@ -792,14 +792,14 @@ article number.  This function is called narrowed to an article."
   "Add a nov line for the GROUP nov headers, incrementally."
   (with-current-buffer (nnml-open-incremental-nov group)
     (goto-char (point-max))
-    (mail-header-set-number headers article)
+    (setf (mail-header-number headers) article)
     (nnheader-insert-nov headers)))
 
 (defun nnml-add-nov (group article headers)
   "Add a nov line for the GROUP base."
   (with-current-buffer (nnml-open-nov group)
     (goto-char (point-max))
-    (mail-header-set-number headers article)
+    (setf (mail-header-number headers) article)
     (nnheader-insert-nov headers)))
 
 (defsubst nnml-header-value ()
@@ -816,8 +816,8 @@ article number.  This function is called narrowed to an article."
 	     (1- (point))
 	   (point-max))))
       (let ((headers (nnheader-parse-naked-head)))
-	(mail-header-set-chars headers chars)
-	(mail-header-set-number headers number)
+	(setf (mail-header-chars  headers) chars)
+	(setf (mail-header-number headers) number)
 	headers))))
 
 (defun nnml-get-nov-buffer (group &optional incrementalp)
@@ -838,9 +838,7 @@ article number.  This function is called narrowed to an article."
     buffer))
 
 (defun nnml-open-nov (group)
-  (or (let ((buffer (cdr (assoc group nnml-nov-buffer-alist))))
-	(and (buffer-name buffer)
-	     buffer))
+  (or (gnus-buffer-live-p (cdr (assoc group nnml-nov-buffer-alist)))
       (let ((buffer (nnml-get-nov-buffer group)))
 	(push (cons group buffer) nnml-nov-buffer-alist)
 	buffer)))
@@ -848,7 +846,7 @@ article number.  This function is called narrowed to an article."
 (defun nnml-save-nov ()
   (save-excursion
     (while nnml-nov-buffer-alist
-      (when (buffer-name (cdar nnml-nov-buffer-alist))
+      (when (buffer-live-p (cdar nnml-nov-buffer-alist))
 	(set-buffer (cdar nnml-nov-buffer-alist))
 	(when (buffer-modified-p)
 	  (nnmail-write-region (point-min) (point-max)

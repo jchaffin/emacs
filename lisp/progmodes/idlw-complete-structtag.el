@@ -3,7 +3,6 @@
 ;; Copyright (C) 2001-2019 Free Software Foundation, Inc.
 
 ;; Author: Carsten Dominik <dominik@astro.uva.nl>
-;; Maintainer: J.D. Smith <jdsmith@as.arizona.edu>
 ;; Old-Version: 1.2
 ;; Keywords: languages
 ;; Package: idlwave

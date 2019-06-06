@@ -129,6 +129,8 @@
 (setq tramp-archive-enabled tramp-gvfs-enabled)
 
 ;; <https://github.com/libarchive/libarchive/wiki/LibarchiveFormats>
+;; Note: "arc" and "zoo" are supported by `archive-mode', but they
+;; don't work here.
 ;;;###autoload
 (defconst tramp-archive-suffixes
   ;; "cab", "lzh", "msu" and "zip" are included with lower and upper
@@ -318,10 +320,11 @@ pass to the OPERATION."
 			      operation args))
 	     (archive (tramp-archive-file-name-archive filename)))
 
-        ;; The file archive could be a directory, see Bug#30293.
-        (if (and archive
-	         (tramp-archive-run-real-handler
-                  #'file-directory-p (list archive)))
+        ;; `filename' could be a quoted file name.  Or the file
+        ;; archive could be a directory, see Bug#30293.
+        (if (or (null archive)
+	        (tramp-archive-run-real-handler
+                 #'file-directory-p (list archive)))
             (tramp-archive-run-real-handler operation args)
           ;; Now run the handler.
           (let ((tramp-methods (cons `(,tramp-archive-method) tramp-methods))
@@ -384,6 +387,8 @@ pass to the OPERATION."
 (defun tramp-archive-file-name-p (name)
   "Return t if NAME is a string with archive file name syntax."
   (and (stringp name)
+       ;; `tramp-archive-file-name-regexp' does not suppress quoted file names.
+       (not (tramp-compat-file-name-quoted-p name t))
        ;; We cannot use `string-match-p', the matches are used.
        (string-match tramp-archive-file-name-regexp name)
        t))

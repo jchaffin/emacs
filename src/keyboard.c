@@ -364,7 +364,7 @@ static void restore_getcjmp (void *);
 static Lisp_Object apply_modifiers (int, Lisp_Object);
 static void restore_kboard_configuration (int);
 static void handle_interrupt (bool);
-static _Noreturn void quit_throw_to_read_char (bool);
+static AVOID quit_throw_to_read_char (bool);
 static void timer_start_idle (void);
 static void timer_stop_idle (void);
 static void timer_resume_idle (void);
@@ -1131,13 +1131,12 @@ This also exits all active minibuffers.  */
   Fthrow (Qtop_level, Qnil);
 }
 
-static _Noreturn void
+static AVOID
 user_error (const char *msg)
 {
   xsignal1 (Quser_error, build_string (msg));
 }
 
-/* _Noreturn will be added to prototype by make-docfile.  */
 DEFUN ("exit-recursive-edit", Fexit_recursive_edit, Sexit_recursive_edit, 0, 0, "",
        doc: /* Exit from the innermost recursive edit or minibuffer.  */
        attributes: noreturn)
@@ -1149,7 +1148,6 @@ DEFUN ("exit-recursive-edit", Fexit_recursive_edit, Sexit_recursive_edit, 0, 0, 
   user_error ("No recursive edit is in progress");
 }
 
-/* _Noreturn will be added to prototype by make-docfile.  */
 DEFUN ("abort-recursive-edit", Fabort_recursive_edit, Sabort_recursive_edit, 0, 0, "",
        doc: /* Abort the command that requested this recursive edit or minibuffer input.  */
        attributes: noreturn)
@@ -3892,10 +3890,12 @@ kbd_buffer_get_event (KBOARD **kbp,
 #ifdef HAVE_EXT_MENU_BAR
       case MENU_BAR_ACTIVATE_EVENT:
 	{
+          struct frame *f;
 	  kbd_fetch_ptr = next_kbd_event (event);
 	  input_pending = readable_events (0);
-	  if (FRAME_LIVE_P (XFRAME (event->ie.frame_or_window)))
-	    x_activate_menubar (XFRAME (event->ie.frame_or_window));
+          f = (XFRAME (event->ie.frame_or_window));
+	  if (FRAME_LIVE_P (f) && FRAME_TERMINAL (f)->activate_menubar_hook)
+	    FRAME_TERMINAL (f)->activate_menubar_hook (f);
 	}
         break;
 #endif
@@ -3909,7 +3909,7 @@ kbd_buffer_get_event (KBOARD **kbp,
       case END_SESSION_EVENT:
       case LANGUAGE_CHANGE_EVENT:
 #endif
-#if defined (HAVE_X11) || defined (HAVE_NTGUI) || defined (HAVE_NS)
+#ifdef HAVE_WINDOW_SYSTEM
       case DELETE_WINDOW_EVENT:
       case ICONIFY_EVENT:
       case DEICONIFY_EVENT:
@@ -5283,7 +5283,7 @@ make_lispy_event (struct input_event *event)
 
   switch (event->kind)
     {
-#if defined (HAVE_X11) || defined (HAVE_NTGUI) || defined (HAVE_NS)
+#ifdef HAVE_WINDOW_SYSTEM
     case DELETE_WINDOW_EVENT:
       /* Make an event (delete-frame (FRAME)).  */
       return list2 (Qdelete_frame, list1 (event->frame_or_window));
@@ -6510,7 +6510,7 @@ modify_event_symbol (ptrdiff_t symbol_num, int modifiers, Lisp_Object symbol_kin
 #ifdef HAVE_WINDOW_SYSTEM
       if (NILP (value))
 	{
-	  char *name = x_get_keysym_name (symbol_num);
+	  char *name = get_keysym_name (symbol_num);
 	  if (name)
 	    value = intern (name);
 	}
@@ -9968,7 +9968,7 @@ If CHECK-TIMERS is non-nil, timers that are ready to run will do so.  */)
 DEFUN ("recent-keys", Frecent_keys, Srecent_keys, 0, 1, 0,
        doc: /* Return vector of last few events, not counting those from keyboard macros.
 If INCLUDE-CMDS is non-nil, include the commands that were run,
-represented as events of the form (nil . COMMAND).  */)
+represented as pseudo-events of the form (nil . COMMAND).  */)
   (Lisp_Object include_cmds)
 {
   bool cmds = !NILP (include_cmds);

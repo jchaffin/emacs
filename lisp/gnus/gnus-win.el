@@ -28,6 +28,7 @@
 
 (require 'gnus)
 (require 'gnus-util)
+(require 'seq)
 
 (defgroup gnus-windows nil
   "Window configuration."
@@ -269,7 +270,7 @@ See the Gnus manual for an explanation of the syntax used.")
 	    (error "Invalid buffer type: %s" type))
 	  (let ((buf (gnus-get-buffer-create
 		      (gnus-window-to-buffer-helper buffer))))
-	    (when (buffer-name buf)
+            (when (buffer-live-p buf)
 	      (cond
                ((eq buf (window-buffer (selected-window)))
                 (set-buffer buf))
@@ -284,7 +285,7 @@ See the Gnus manual for an explanation of the syntax used.")
                 ;; from a hard-dedicated frame, it creates (and
                 ;; configures) a new frame, leaving the dedicated frame alone.
                 (pop-to-buffer buf))
-               (t (switch-to-buffer buf)))))
+               (t (pop-to-buffer-same-window buf)))))
 	  (when (memq 'frame-focus split)
 	    (setq gnus-window-frame-focus window))
 	  ;; We return the window if it has the `point' spec.
@@ -429,20 +430,13 @@ See the Gnus manual for an explanation of the syntax used.")
 (defun gnus-delete-windows-in-gnusey-frames ()
   "Do a `delete-other-windows' in all frames that have Gnus windows."
   (let ((buffers (gnus-buffers)))
-    (mapcar
-     (lambda (frame)
-       (unless (eq (cdr (assq 'minibuffer
-			      (frame-parameters frame)))
-		   'only)
-	 (select-frame frame)
-	 (let (do-delete)
-	   (walk-windows
-	    (lambda (window)
-	      (when (memq (window-buffer window) buffers)
-		(setq do-delete t))))
-	   (when do-delete
-	     (delete-other-windows)))))
-     (frame-list))))
+    (dolist (frame (frame-list))
+      (unless (eq (frame-parameter frame 'minibuffer) 'only)
+        (select-frame frame)
+        (when (get-window-with-predicate
+               (lambda (window)
+                 (memq (window-buffer window) buffers)))
+          (delete-other-windows))))))
 
 (defun gnus-all-windows-visible-p (split)
   "Say whether all buffers in SPLIT are currently visible.
@@ -490,11 +484,10 @@ should have point."
   (nth 1 (window-edges window)))
 
 (defun gnus-remove-some-windows ()
-  (let ((buffers (gnus-buffers))
-	buf bufs lowest-buf lowest)
+  (let (bufs lowest-buf lowest)
     (save-excursion
       ;; Remove windows on all known Gnus buffers.
-      (while (setq buf (pop buffers))
+      (dolist (buf (gnus-buffers))
 	(when (get-buffer-window buf)
 	  (push buf bufs)
 	  (pop-to-buffer buf)
@@ -505,19 +498,19 @@ should have point."
       (when lowest-buf
 	(pop-to-buffer lowest-buf)
 	(set-buffer nntp-server-buffer))
-      (mapcar (lambda (b) (delete-windows-on b t))
-	      (delq lowest-buf bufs)))))
+      (dolist (b (delq lowest-buf bufs))
+        (delete-windows-on b t)))))
 
 (defun gnus-get-buffer-window (buffer &optional frame)
-  (cond ((and (null gnus-use-frames-on-any-display)
-	      (memq frame '(t 0 visible)))
-	 (car
-	  (let ((frames (frames-on-display-list)))
-	    (seq-remove (lambda (win) (not (memq (window-frame win)
-						     frames)))
-			    (get-buffer-window-list buffer nil frame)))))
-	(t
-	 (get-buffer-window buffer frame))))
+  "Return a window currently displaying BUFFER, or nil if none.
+Like `get-buffer-window', but respecting
+`gnus-use-frames-on-any-display'."
+  (if (and (not gnus-use-frames-on-any-display)
+           (memq frame '(t 0 visible)))
+      (let ((frames (frames-on-display-list)))
+        (seq-find (lambda (win) (memq (window-frame win) frames))
+                  (get-buffer-window-list buffer nil frame)))
+    (get-buffer-window buffer frame)))
 
 (provide 'gnus-win)
 

@@ -580,6 +580,7 @@ i.e., subtract 2 * most-negative-fixnum from VALUE before shifting it."
 If LIST is nil, return nil.
 If N is non-nil, return the Nth-to-last link of LIST.
 If N is bigger than the length of LIST, return LIST."
+  (declare (side-effect-free t))
   (if n
       (and (>= n 0)
            (let ((m (safe-length list)))
@@ -591,6 +592,7 @@ If N is bigger than the length of LIST, return LIST."
   "Return a copy of LIST with the last N elements removed.
 If N is omitted or nil, the last element is removed from the
 copy."
+  (declare (side-effect-free t))
   (if (and n (<= n 0)) list
     (nbutlast (copy-sequence list) n)))
 
@@ -726,6 +728,7 @@ If that is non-nil, the element matches; then `assoc-default'
 
 If no element matches, the value is nil.
 If TEST is omitted or nil, `equal' is used."
+  (declare (side-effect-free t))
   (let (found (tail alist) value)
     (while (and tail (not found))
       (let ((elt (car tail)))
@@ -739,6 +742,7 @@ If TEST is omitted or nil, `equal' is used."
 ELT must be a string.  Upper-case and lower-case letters are treated as equal.
 Unibyte strings are converted to multibyte for comparison.
 Non-strings in LIST are ignored."
+  (declare (side-effect-free t))
   (while (and list
 	      (not (and (stringp (car list))
 			(eq t (compare-strings elt 0 nil (car list) 0 nil t)))))
@@ -822,6 +826,7 @@ Example:
 (defun remove (elt seq)
   "Return a copy of SEQ with all occurrences of ELT removed.
 SEQ must be a list, vector, or string.  The comparison is done with `equal'."
+  (declare (side-effect-free t))
   (if (nlistp seq)
       ;; If SEQ isn't a list, there's no need to copy SEQ because
       ;; `delete' will return a new object.
@@ -832,6 +837,7 @@ SEQ must be a list, vector, or string.  The comparison is done with `equal'."
   "Return LIST with all occurrences of ELT removed.
 The comparison is done with `eq'.  Contrary to `delq', this does not use
 side-effects, and the argument LIST is not modified."
+  (declare (side-effect-free t))
   (while (and (eq elt (car list)) (setq list (cdr list))))
   (if (memq elt list)
       (delq elt (copy-sequence list))
@@ -1232,12 +1238,14 @@ The normal global definition of the character C-x indirects to this keymap.")
 			  c)))
 	    key)))
 
-(defun eventp (obj)
-  "True if the argument is an event object."
-  (when obj
-    (or (integerp obj)
-        (and (symbolp obj) obj (not (keywordp obj)))
-        (and (consp obj) (symbolp (car obj))))))
+(defun eventp (object)
+  "Return non-nil if OBJECT is an input event or event object."
+  (or (integerp object)
+      (and (if (consp object)
+               (setq object (car object))
+             object)
+           (symbolp object)
+           (not (keywordp object)))))
 
 (defun event-modifiers (event)
   "Return a list of symbols representing the modifier keys in event EVENT.
@@ -1596,12 +1604,23 @@ be a list of the form returned by `event-start' and `event-end'."
 
 ;;;; Hook manipulation functions.
 
-(defun add-hook (hook function &optional append local)
+(defun add-hook (hook function &optional depth local)
+  ;; Note: the -100..100 depth range is arbitrary and was chosen to match the
+  ;; range used in add-function.
   "Add to the value of HOOK the function FUNCTION.
 FUNCTION is not added if already present.
-FUNCTION is added (if necessary) at the beginning of the hook list
-unless the optional argument APPEND is non-nil, in which case
-FUNCTION is added at the end.
+
+The place where the function is added depends on the DEPTH
+parameter.  DEPTH defaults to 0.  By convention, it should be
+a number between -100 and 100 where 100 means that the function
+should be at the very end of the list, whereas -100 means that
+the function should always come first.
+Since nothing is \"always\" true, don't use 100 nor -100.
+When two functions have the same depth, the new one gets added after the
+old one if depth is strictly positive and before otherwise.
+
+For backward compatibility reasons, a symbol other than nil is
+interpreted as a DEPTH of 90.
 
 The optional fourth argument, LOCAL, if non-nil, says to modify
 the hook's buffer-local value rather than its global value.
@@ -1614,6 +1633,7 @@ HOOK is void, it is first set to nil.  If HOOK's value is a single
 function, it is changed to a list of functions."
   (or (boundp hook) (set hook nil))
   (or (default-boundp hook) (set-default hook nil))
+  (unless (numberp depth) (setq depth (if depth 90 0)))
   (if local (unless (local-variable-if-set-p hook)
 	      (set (make-local-variable hook) (list t)))
     ;; Detect the case where make-local-variable was used on a hook
@@ -1626,12 +1646,25 @@ function, it is changed to a list of functions."
       (setq hook-value (list hook-value)))
     ;; Do the actual addition if necessary
     (unless (member function hook-value)
-      (when (stringp function)
+      (when (stringp function)          ;FIXME: Why?
 	(setq function (purecopy function)))
+      (when (or (get hook 'hook--depth-alist) (not (zerop depth)))
+        ;; Note: The main purpose of the above `when' test is to avoid running
+        ;; this `setf' before `gv' is loaded during bootstrap.
+        (setf (alist-get function (get hook 'hook--depth-alist)
+                         0 'remove #'equal)
+              depth))
       (setq hook-value
-	    (if append
+	    (if (< 0 depth)
 		(append hook-value (list function))
-	      (cons function hook-value))))
+	      (cons function hook-value)))
+      (let ((depth-alist (get hook 'hook--depth-alist)))
+        (when depth-alist
+          (setq hook-value
+                (sort (if (< 0 depth) hook-value (copy-sequence hook-value))
+                      (lambda (f1 f2)
+                        (< (alist-get f1 depth-alist 0 nil #'equal)
+                           (alist-get f2 depth-alist 0 nil #'equal))))))))
     ;; Set the actual variable
     (if local
 	(progn
@@ -3898,6 +3931,7 @@ Zero means the entire text matched by the whole regexp or whole string.
 STRING should be given if the last search was by `string-match' on STRING.
 If STRING is nil, the current buffer should be the same buffer
 the search/match was performed in."
+  (declare (side-effect-free t))
   (if (match-beginning num)
       (if string
 	  (substring string (match-beginning num) (match-end num))
@@ -3911,6 +3945,7 @@ Zero means the entire text matched by the whole regexp or whole string.
 STRING should be given if the last search was by `string-match' on STRING.
 If STRING is nil, the current buffer should be the same buffer
 the search/match was performed in."
+  (declare (side-effect-free t))
   (if (match-beginning num)
       (if string
 	  (substring-no-properties string (match-beginning num)
@@ -5001,7 +5036,8 @@ to deactivate this transient map, regardless of KEEP-PRED."
 ;;			      MAX-VALUE
 ;;			      MESSAGE
 ;;			      MIN-CHANGE
-;;			      MIN-TIME])
+;;                            MIN-TIME
+;;                            MESSAGE-SUFFIX])
 ;;
 ;; This weirdness is for optimization reasons: we want
 ;; `progress-reporter-update' to be as fast as possible, so
@@ -5011,7 +5047,7 @@ to deactivate this transient map, regardless of KEEP-PRED."
 ;; digits of precision, it doesn't really matter here.  On the other
 ;; hand, it greatly simplifies the code.
 
-(defsubst progress-reporter-update (reporter &optional value)
+(defsubst progress-reporter-update (reporter &optional value suffix)
   "Report progress of an operation in the echo area.
 REPORTER should be the result of a call to `make-progress-reporter'.
 
@@ -5020,14 +5056,17 @@ If REPORTER is a numerical progress reporter---i.e. if it was
  `make-progress-reporter'---then VALUE should be a number between
  MIN-VALUE and MAX-VALUE.
 
-If REPORTER is a non-numerical reporter, VALUE should be nil.
+Optional argument SUFFIX is a string to be displayed after
+REPORTER's main message and progress text.  If REPORTER is a
+non-numerical reporter, then VALUE should be nil, or a string to
+use instead of SUFFIX.
 
 This function is relatively inexpensive.  If the change since
 last update is too small or insufficient time has passed, it does
 nothing."
   (when (or (not (numberp value))      ; For pulsing reporter
 	    (>= value (car reporter))) ; For numerical reporter
-    (progress-reporter-do-update reporter value)))
+    (progress-reporter-do-update reporter value suffix)))
 
 (defun make-progress-reporter (message &optional min-value max-value
 				       current-value min-change min-time)
@@ -5071,26 +5110,28 @@ effectively rounded up."
 		       max-value
 		       message
 		       (if min-change (max (min min-change 50) 1) 1)
-		       min-time))))
+                       min-time
+                       ;; SUFFIX
+                       nil))))
     (progress-reporter-update reporter (or current-value min-value))
     reporter))
 
-(defun progress-reporter-force-update (reporter &optional value new-message)
+(defun progress-reporter-force-update (reporter &optional value new-message suffix)
   "Report progress of an operation in the echo area unconditionally.
 
-The first two arguments are the same as in `progress-reporter-update'.
+REPORTER, VALUE, and SUFFIX are the same as in `progress-reporter-update'.
 NEW-MESSAGE, if non-nil, sets a new message for the reporter."
   (let ((parameters (cdr reporter)))
     (when new-message
       (aset parameters 3 new-message))
     (when (aref parameters 0)
       (aset parameters 0 (float-time)))
-    (progress-reporter-do-update reporter value)))
+    (progress-reporter-do-update reporter value suffix)))
 
 (defvar progress-reporter--pulse-characters ["-" "\\" "|" "/"]
   "Characters to use for pulsing progress reporters.")
 
-(defun progress-reporter-do-update (reporter value)
+(defun progress-reporter-do-update (reporter value &optional suffix)
   (let* ((parameters   (cdr reporter))
 	 (update-time  (aref parameters 0))
 	 (min-value    (aref parameters 1))
@@ -5125,18 +5166,25 @@ NEW-MESSAGE, if non-nil, sets a new message for the reporter."
 	       (setcar reporter (ceiling (car reporter))))
 	     ;; Only print message if enough time has passed
 	     (when enough-time-passed
-	       (if (> percentage 0)
-		   (message "%s%d%%" text percentage)
-		 (message "%s" text)))))
+               (if suffix
+                   (aset parameters 6 suffix)
+                 (setq suffix (or (aref parameters 6) "")))
+               (if (> percentage 0)
+                   (message "%s%d%% %s" text percentage suffix)
+                 (message "%s %s" text suffix)))))
 	  ;; Pulsing indicator
 	  (enough-time-passed
-	   (let ((index (mod (1+ (car reporter)) 4))
-		 (message-log-max nil))
+           (when (and value (not suffix))
+             (setq suffix value))
+           (if suffix
+               (aset parameters 6 suffix)
+             (setq suffix (or (aref parameters 6) "")))
+           (let* ((index (mod (1+ (car reporter)) 4))
+                  (message-log-max nil)
+                  (pulse-char (aref progress-reporter--pulse-characters
+                                    index)))
 	     (setcar reporter index)
-	     (message "%s %s"
-		      text
-		      (aref progress-reporter--pulse-characters
-			    index)))))))
+             (message "%s %s %s" text pulse-char suffix))))))
 
 (defun progress-reporter-done (reporter)
   "Print reporter's message followed by word \"done\" in echo area."
@@ -5533,5 +5581,9 @@ returned list are in the same order as in TREE.
 ;; Technically, `flatten-list' is a misnomer, but we provide it here
 ;; for discoverability:
 (defalias 'flatten-list 'flatten-tree)
+
+;; The initial anchoring is for better performance in searching matches.
+(defconst regexp-unmatchable "\\`a\\`"
+  "Standard regexp guaranteed not to match any string at all.")
 
 ;;; subr.el ends here

@@ -1058,7 +1058,8 @@ REMOTE is non-nil, search on the remote host indicated by
         (when (stringp res) (file-local-name res)))
     ;; Use 1 rather than file-executable-p to better match the
     ;; behavior of call-process.
-    (locate-file command exec-path exec-suffixes 1)))
+    (let ((default-directory (file-name-quote default-directory 'top)))
+      (locate-file command exec-path exec-suffixes 1))))
 
 (defun load-library (library)
   "Load the Emacs Lisp library named LIBRARY.
@@ -3297,6 +3298,7 @@ asking you for confirmation."
 	   (fill-column             . integerp)	;; C source code
 	   (indent-tabs-mode        . booleanp)	;; C source code
 	   (left-margin             . integerp)	;; C source code
+	   (inhibit-compacting-font-caches . booleanp) ;; C source code
 	   (no-update-autoloads     . booleanp)
 	   (lexical-binding	 . booleanp)	  ;; C source code
 	   (tab-width               . integerp)	  ;; C source code
@@ -3589,7 +3591,9 @@ local variables, but directory-local variables may still be applied."
 	result)
     (unless (eq handle-mode t)
       (setq file-local-variables-alist nil)
-      (when (file-remote-p default-directory)
+      (when (and (file-remote-p default-directory)
+                 (fboundp 'hack-connection-local-variables)
+                 (fboundp 'connection-local-criteria-for-default-directory))
         (with-demoted-errors "Connection-local variables error: %s"
 	  ;; Note this is a no-op if enable-local-variables is nil.
 	  (hack-connection-local-variables
@@ -4107,6 +4111,52 @@ This function returns either:
 (declare-function map-merge-with "map" (type function &rest maps))
 (declare-function map-merge "map" (type &rest maps))
 
+(defun dir-locals--get-sort-score (node)
+  "Return a number used for sorting the definitions of dir locals.
+NODE is assumed to be a cons cell where the car is either a
+string or a symbol representing a mode name.
+
+If it is a mode then the the depth of the mode (ie, how many
+parents that mode has) will be returned.
+
+If it is a string then the length of the string plus 1000 will be
+returned.
+
+Otherwise it returns -1.
+
+That way the value can be used to sort the list such that deeper
+modes will be after the other modes.  This will be followed by
+directory entries in order of length.  If the entries are all
+applied in order then that means the more specific modes will
+  override the values specified by the earlier modes and directory
+variables will override modes."
+  (let ((key (car node)))
+    (cond ((null key) -1)
+          ((symbolp key)
+           (let ((mode key)
+                 (depth 0))
+             (while (setq mode (get mode 'derived-mode-parent))
+               (setq depth (1+ depth)))
+             depth))
+          ((stringp key)
+           (+ 1000 (length key)))
+          (t -2))))
+
+(defun dir-locals--sort-variables (variables)
+  "Sorts VARIABLES so that applying them in order has the right effect.
+The variables are compared by dir-locals--get-sort-score.
+Directory entries are then recursively sorted using the same
+criteria."
+  (setq variables (sort variables
+                        (lambda (a b)
+                          (< (dir-locals--get-sort-score a)
+                             (dir-locals--get-sort-score b)))))
+  (dolist (n variables)
+    (when (stringp (car n))
+      (setcdr n (dir-locals--sort-variables (cdr n)))))
+
+  variables)
+
 (defun dir-locals-read-from-dir (dir)
   "Load all variables files in DIR and register a new class and instance.
 DIR is the absolute name of a directory which must contain at
@@ -4144,6 +4194,7 @@ Return the new class name, which is a symbol named DIR."
                                     variables
                                     newvars))))))
       (setq success latest))
+    (setq variables (dir-locals--sort-variables variables))
     (dir-locals-set-class-variables class-name variables)
     (dir-locals-set-directory-class dir class-name success)
     class-name))
@@ -4218,6 +4269,9 @@ However, the mode will not be changed if
 \(3) the new file name does not particularly specify any mode."
   :type 'boolean
   :group 'editing-basics)
+
+(defvar after-set-visited-file-name-hook nil
+  "Normal hook run just after setting visited file name of current buffer.")
 
 (defun set-visited-file-name (filename &optional no-query along-with-file)
   "Change name of file visited in current buffer to FILENAME.
@@ -4339,7 +4393,8 @@ the old visited file has been renamed to the new name FILENAME."
 	      (set-auto-mode t)
 	      (or (eq old major-mode)
 		  (hack-local-variables))))
-    (error nil))))
+      (error nil))
+    (run-hooks 'after-set-visited-file-name-hook)))
 
 (defun write-file (filename &optional confirm)
   "Write current buffer into file FILENAME.
@@ -5255,7 +5310,7 @@ Before and after saving the buffer, this function runs
 		     (set-file-extended-attributes buffer-file-name
 						   (nth 1 setmodes)))
 		 (set-file-modes buffer-file-name
-				 (logior (car setmodes) 128))))))
+				 (logior (car setmodes) 128)))))
 	(let (success)
 	  (unwind-protect
 	      (progn
@@ -5271,7 +5326,7 @@ Before and after saving the buffer, this function runs
 	    (and setmodes (not success)
 		 (progn
 		   (rename-file (nth 2 setmodes) buffer-file-name t)
-		   (setq buffer-backed-up nil))))))
+		   (setq buffer-backed-up nil)))))))
     setmodes))
 
 (declare-function diff-no-select "diff"
@@ -5839,6 +5894,16 @@ This should not be relied upon.
 
 For more information on how this variable is used by Auto Revert mode,
 see Info node `(emacs)Supporting additional buffers'.")
+
+(defvar-local buffer-auto-revert-by-notification nil
+  "Whether a buffer can rely on notification in Auto-Revert mode.
+If non-nil, monitoring changes to the directory of the current
+buffer is sufficient for knowing when that buffer needs to be
+updated in Auto Revert Mode.  Such notification does not include
+changes to files in that directory, only to the directory itself.
+
+This variable only applies to buffers where `buffer-file-name' is
+nil; other buffers are tracked by their files.")
 
 (defvar before-revert-hook nil
   "Normal hook for `revert-buffer' to run before reverting.

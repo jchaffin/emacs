@@ -155,13 +155,13 @@ If DATE lacks timezone information, GMT is assumed."
     (error
      (let ((overflow-error '(error "Specified time is not representable")))
        (if (equal err overflow-error)
-	   (apply 'signal err)
+	   (signal (car err) (cdr err))
 	 (condition-case err
 	     (encode-time (parse-time-string
 			   (timezone-make-date-arpa-standard date)))
 	   (error
 	    (if (equal err overflow-error)
-		(apply 'signal err)
+		(signal (car err) (cdr err))
 	      (error "Invalid date: %s" date)))))))))
 
 ;;;###autoload

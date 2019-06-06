@@ -754,7 +754,9 @@ regardless of user name or time."
 	     (log-edit-insert-changelog-entries (log-edit-files)))))
       (log-edit-set-common-indentation)
       ;; Add an Author: field if appropriate.
-      (when author (log-edit-add-field "Author" (car author)))
+      (when author
+        (log-edit-add-field "Author" (car author))
+        (log-edit-add-field "Summary" ""))
       ;; Add a Fixes: field if applicable.
       (when (consp log-edit-rewrite-fixes)
 	(rfc822-goto-eoh)
@@ -1084,6 +1086,22 @@ line of MSG."
         (delete-region (match-beginning 0) (match-end 0)))
       (if summary (insert summary "\n\n"))
       (cons (buffer-string) res))))
+
+(defun log-edit--toggle-amend (last-msg-fn)
+  (when (log-edit-toggle-header "Amend" "yes")
+    (goto-char (point-max))
+    (unless (bolp) (insert "\n"))
+    (insert (funcall last-msg-fn))
+    (save-excursion
+      (rfc822-goto-eoh)
+      (forward-line 1)
+      (let ((pt (point)))
+        (and (zerop (forward-line 1))
+             (looking-at "\n\\|\\'")
+             (let ((summary (buffer-substring-no-properties pt (1- (point)))))
+               (skip-chars-forward " \n")
+               (delete-region pt (point))
+               (log-edit-set-header "Summary" summary)))))))
 
 (provide 'log-edit)
 

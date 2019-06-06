@@ -441,6 +441,15 @@ abbreviated part can also be toggled with
   :version "27.1"
   :group 'grep)
 
+(defcustom grep-search-path '(nil)
+  "Search path for grep results.
+Elements should be directory names, not file names of directories.
+The value nil as an element means to try the default directory."
+  :group 'grep
+  :version "27.1"
+  :type '(repeat (choice (const :tag "Default" nil)
+			 (string :tag "Directory"))))
+
 (defvar grep-find-abbreviate-properties
   (let ((ellipsis (if (char-displayable-p ?…) "[…]" "[...]"))
         (map (make-sparse-keymap)))
@@ -828,7 +837,8 @@ This function is called from `compilation-filter-hook'."
        grep-mode-line-matches)
   ;; compilation-directory-matcher can't be nil, so we set it to a regexp that
   ;; can never match.
-  (set (make-local-variable 'compilation-directory-matcher) '("\\`a\\`"))
+  (set (make-local-variable 'compilation-directory-matcher)
+       (list regexp-unmatchable))
   (set (make-local-variable 'compilation-process-setup-function)
        'grep-process-setup)
   (set (make-local-variable 'compilation-disable-input) t)

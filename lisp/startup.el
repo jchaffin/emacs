@@ -1,4 +1,4 @@
-;;; startup.el --- process Emacs shell arguments  -*- lexical-binding: t -*-
+;; startup.el --- process Emacs shell arguments  -*- lexical-binding: t -*-
 
 ;; Copyright (C) 1985-1986, 1992, 1994-2019 Free Software Foundation,
 ;; Inc.
@@ -971,6 +971,15 @@ the `--debug-init' option to view a complete error backtrace."
     (when debug-on-error-should-be-set
       (setq debug-on-error debug-on-error-from-init-file))))
 
+(defun find-init-path (fn)
+  "Look in ~/.config/FOO or ~/.FOO for the dotfile or dot directory FOO.
+It is expected that the output will undergo ~ expansion.  Implements the
+XDG convention for dotfiles."
+  (let* ((xdg-path (concat "~" init-file-user "/.config/" fn))
+        (oldstyle-path (concat "~" init-file-user "/." fn))
+        (found-path (if (file-exists-p xdg-path) xdg-path oldstyle-path)))
+    found-path))
+
 (defun command-line ()
   "A subroutine of `normal-top-level'.
 Amongst another things, it parses the command-line arguments."
@@ -1172,7 +1181,7 @@ please check its value")
       ;; "early-init" without an extension, as it does for ".emacs".
       "early-init.el"
       (file-name-as-directory
-       (concat "~" init-file-user "/.emacs.d")))))
+       (find-init-path "emacs.d")))))
   (setq early-init-file user-init-file)
 
   ;; If any package directory exists, initialize the package system.
@@ -1313,7 +1322,7 @@ please check its value")
         ((eq system-type 'ms-dos)
          (concat "~" init-file-user "/_emacs"))
         ((not (eq system-type 'windows-nt))
-         (concat "~" init-file-user "/.emacs"))
+         (find-init-path "emacs"))
         ;; Else deal with the Windows situation.
         ((directory-files "~" nil "^\\.emacs\\(\\.elc?\\)?$")
          ;; Prefer .emacs on Windows.
@@ -1331,7 +1340,7 @@ please check its value")
        (expand-file-name
         "init"
         (file-name-as-directory
-         (concat "~" init-file-user "/.emacs.d"))))
+         (find-init-path "emacs.d"))))
      (not inhibit-default-init))
 
     (when (and deactivate-mark transient-mark-mode)
@@ -1378,7 +1387,8 @@ please check its value")
   (if (get-buffer "*scratch*")
       (with-current-buffer "*scratch*"
 	(if (eq major-mode 'fundamental-mode)
-	    (funcall initial-major-mode))))
+	    (funcall initial-major-mode))
+        (setq-local lexical-binding t)))
 
   ;; Load library for our terminal type.
   ;; User init file can set term-file-prefix to nil to prevent this.
@@ -2124,7 +2134,7 @@ If you have no Meta key, you may instead type ESC followed by the character.)"))
   (insert "\t\t")
   (insert-button "Open *scratch* buffer"
 		 'action (lambda (_button) (switch-to-buffer
-                                       (get-buffer-create "*scratch*")))
+                                       (startup--get-buffer-create-scratch)))
 		 'follow-link t)
   (insert "\n")
   (insert "\n" (emacs-version) "\n" emacs-copyright "\n")
@@ -2249,6 +2259,13 @@ A fancy display is used on graphic displays, normal otherwise."
 
 (defalias 'about-emacs 'display-about-screen)
 (defalias 'display-splash-screen 'display-startup-screen)
+
+(defun startup--get-buffer-create-scratch ()
+  (or (get-buffer "*scratch*")
+      (with-current-buffer (get-buffer-create "*scratch*")
+        (set-buffer-major-mode (current-buffer))
+        (setq-local lexical-binding t)
+        (current-buffer))))
 
 (defun command-line-1 (args-left)
   "A subroutine of `command-line'."
@@ -2399,7 +2416,7 @@ nil default-directory" name)
                        (unless (= end (length str-expr))
                          (error "Trailing garbage following expression: %s"
                                 (substring str-expr end)))
-                       (eval expr)))
+                       (eval expr t)))
 
                     ((member argi '("-L" "-directory"))
                      ;; -L :/foo adds /foo to the _end_ of load-path.
@@ -2514,7 +2531,7 @@ nil default-directory" name)
     (when (eq initial-buffer-choice t)
       ;; When `initial-buffer-choice' equals t make sure that *scratch*
       ;; exists.
-      (get-buffer-create "*scratch*"))
+      (startup--get-buffer-create-scratch))
 
     ;; If *scratch* exists and is empty, insert initial-scratch-message.
     ;; Do this before switching to *scratch* below to handle bug#9605.
@@ -2538,7 +2555,7 @@ nil default-directory" name)
 		   ((functionp initial-buffer-choice)
 		    (funcall initial-buffer-choice))
                    ((eq initial-buffer-choice t)
-                    (get-buffer-create "*scratch*"))
+                    (startup--get-buffer-create-scratch))
                    (t
                     (error "`initial-buffer-choice' must be a string, a function, or t")))))
         (unless (buffer-live-p buf)

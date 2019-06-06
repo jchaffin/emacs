@@ -3,7 +3,6 @@
 ;; Copyright (C) 1993-1997, 2001-2019 Free Software Foundation, Inc.
 
 ;; Author: Karl Fogel <kfogel@red-bean.com>
-;; Maintainer: Karl Fogel <kfogel@red-bean.com>
 ;; Created: July, 1993
 ;; Keywords: bookmarks, placeholders, annotations
 
@@ -334,8 +333,9 @@ one element from `bookmark-alist'."
   "Return the bookmark record corresponding to BOOKMARK-NAME-OR-RECORD.
 If BOOKMARK-NAME-OR-RECORD is a string, look for the corresponding
 bookmark record in `bookmark-alist'; return it if found, otherwise
-error.  Else if BOOKMARK-NAME-OR-RECORD is already a bookmark record,
-just return it."
+error.  If optional argument NOERROR is non-nil, return nil
+instead of signaling an error.  Else if BOOKMARK-NAME-OR-RECORD
+is already a bookmark record, just return it."
   (cond
    ((consp bookmark-name-or-record) bookmark-name-or-record)
    ((stringp bookmark-name-or-record)

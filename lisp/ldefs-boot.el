@@ -1199,7 +1199,7 @@ archive.
 
 \(fn &optional FORCE)" nil nil)
 
-(if (fboundp 'register-definition-prefixes) (register-definition-prefixes "arc-mode" '("archive-")))
+(if (fboundp 'register-definition-prefixes) (register-definition-prefixes "arc-mode" '("arc")))
 
 ;;;***
 
@@ -1799,7 +1799,7 @@ If `global-auto-revert-non-file-buffers' is non-nil, this mode
 may also revert some non-file buffers, as described in the
 documentation of that variable.  It ignores buffers with modes
 matching `global-auto-revert-ignore-modes', and buffers with a
-non-nil vale of `global-auto-revert-ignore-buffer'.
+non-nil value of `global-auto-revert-ignore-buffer'.
 
 When a buffer is reverted, a message is generated.  This can be
 suppressed by setting `auto-revert-verbose' to nil.
@@ -5200,17 +5200,17 @@ If nil, use Emacs default.")
 
 (custom-autoload 'compilation-window-height "compile" t)
 
-(defvar compilation-process-setup-function nil "\
+(defvar compilation-process-setup-function #'ignore "\
 Function to call to customize the compilation process.
 This function is called immediately before the compilation process is
 started.  It can be used to set any variables or functions that are used
 while processing the output of the compilation process.")
 
-(defvar compilation-buffer-name-function nil "\
+(defvar compilation-buffer-name-function #'compilation--default-buffer-name "\
 Function to compute the name of a compilation buffer.
 The function receives one argument, the name of the major mode of the
 compilation buffer.  It should return a string.
-If nil, compute the name with `(concat \"*\" (downcase major-mode) \"*\")'.")
+By default, it returns `(concat \"*\" (downcase name-of-mode) \"*\")'.")
 
 (defvar compilation-finish-functions nil "\
 Functions to call when a compilation process finishes.
@@ -5887,7 +5887,7 @@ Major mode to edit Cascading Style Sheets (CSS).
 This mode provides syntax highlighting, indentation, completion,
 and documentation lookup for CSS.
 
-Use `\\[complete-symbol]' to complete CSS properties, property values,
+Use `\\[completion-at-point]' to complete CSS properties, property values,
 pseudo-elements, pseudo-classes, at-rules, bang-rules, and HTML
 tags, classes and IDs.  Completion candidates for HTML class
 names and IDs are found by looking through open HTML mode
@@ -6792,19 +6792,19 @@ The most useful commands are:
 (push (purecopy '(delim-col 2 1)) package--builtin-versions)
 
 (autoload 'delimit-columns-customize "delim-col" "\
-Customization of `columns' group." t nil)
+Customize the `columns' group." t nil)
 
 (autoload 'delimit-columns-region "delim-col" "\
 Prettify all columns in a text region.
 
-START and END delimits the text region.
+START and END delimit the text region.
 
 \(fn START END)" t nil)
 
 (autoload 'delimit-columns-rectangle "delim-col" "\
 Prettify all columns in a text rectangle.
 
-START and END delimits the corners of text rectangle.
+START and END delimit the corners of the text rectangle.
 
 \(fn START END)" t nil)
 
@@ -7632,14 +7632,14 @@ Display character C using printable string S.
 (autoload 'standard-display-g1 "disp-table" "\
 Display character C as character SC in the g1 character set.
 This function assumes that your terminal uses the SO/SI characters;
-it is meaningless for an X frame.
+it is meaningless for a graphical frame.
 
 \(fn C SC)" nil nil)
 
 (autoload 'standard-display-graphic "disp-table" "\
 Display character C as character GC in graphics character set.
-This function assumes VT100-compatible escapes; it is meaningless for an
-X frame.
+This function assumes VT100-compatible escapes; it is meaningless
+for a graphical frame.
 
 \(fn C GC)" nil nil)
 
@@ -7690,6 +7690,51 @@ in `.emacs'.
 \(fn ARG)" nil nil)
 
 (if (fboundp 'register-definition-prefixes) (register-definition-prefixes "disp-table" '("display-table-print-array")))
+
+;;;***
+
+;;;### (autoloads nil "display-fill-column-indicator" "display-fill-column-indicator.el"
+;;;;;;  (0 0 0 0))
+;;; Generated autoloads from display-fill-column-indicator.el
+
+(autoload 'display-fill-column-indicator-mode "display-fill-column-indicator" "\
+Toggle display of fill-column indicator.
+This uses `display-fill-column-indicator' internally.
+
+If called interactively, enable Display-Fill-Column-Indicator mode if ARG is positive, and
+disable it if ARG is zero or negative.  If called from Lisp,
+also enable the mode if ARG is omitted or nil, and toggle it
+if ARG is `toggle'; disable the mode otherwise.
+
+To change the position of the column displayed by default
+customize `display-fill-column-indicator-column'.  You can change the
+character for the indicator setting `display-fill-column-indicator-character'.
+
+\(fn &optional ARG)" t nil)
+
+(defvar global-display-fill-column-indicator-mode nil "\
+Non-nil if Global Display-Fill-Column-Indicator mode is enabled.
+See the `global-display-fill-column-indicator-mode' command
+for a description of this minor mode.
+Setting this variable directly does not take effect;
+either customize it (see the info node `Easy Customization')
+or call the function `global-display-fill-column-indicator-mode'.")
+
+(custom-autoload 'global-display-fill-column-indicator-mode "display-fill-column-indicator" nil)
+
+(autoload 'global-display-fill-column-indicator-mode "display-fill-column-indicator" "\
+Toggle Display-Fill-Column-Indicator mode in all buffers.
+With prefix ARG, enable Global Display-Fill-Column-Indicator mode if ARG is positive;
+otherwise, disable it.  If called from Lisp, enable the mode if
+ARG is omitted or nil.
+
+Display-Fill-Column-Indicator mode is enabled in all buffers where
+`display-fill-column-indicator--turn-on' would do it.
+See `display-fill-column-indicator-mode' for more information on Display-Fill-Column-Indicator mode.
+
+\(fn &optional ARG)" t nil)
+
+(if (fboundp 'register-definition-prefixes) (register-definition-prefixes "display-fill-column-indicator" '("display-fill-column-indicator--turn-on")))
 
 ;;;***
 
@@ -11599,7 +11644,7 @@ fourth arg NOSEP non-nil inhibits this.
 ;;;### (autoloads nil "eww" "net/eww.el" (0 0 0 0))
 ;;; Generated autoloads from net/eww.el
 
-(defvar eww-suggest-uris '(eww-links-at-point url-get-url-at-point eww-current-url) "\
+(defvar eww-suggest-uris '(eww-links-at-point thing-at-point-url-at-point eww-current-url) "\
 List of functions called to form the list of default URIs for `eww'.
 Each of the elements is a function returning either a string or a list
 of strings.  The results will be joined into a single list with
@@ -12774,7 +12819,7 @@ to get the effect of a C-q.
 
 ;;;### (autoloads nil "flymake" "progmodes/flymake.el" (0 0 0 0))
 ;;; Generated autoloads from progmodes/flymake.el
-(push (purecopy '(flymake 1 0 5)) package--builtin-versions)
+(push (purecopy '(flymake 1 0 6)) package--builtin-versions)
 
 (autoload 'flymake-log "flymake" "\
 Log, at level LEVEL, the message MSG formatted with ARGS.
@@ -12827,12 +12872,10 @@ Flymake collects diagnostic information from multiple sources,
 called backends, and visually annotates the buffer with the
 results.
 
-Flymake performs these checks while the user is editing.  The
-customization variables `flymake-start-on-flymake-mode',
-`flymake-no-changes-timeout' and
-`flymake-start-syntax-check-on-newline' determine the exact
-circumstances whereupon Flymake decides to initiate a check of
-the buffer.
+Flymake performs these checks while the user is editing.
+The customization variables `flymake-start-on-flymake-mode',
+`flymake-no-changes-timeout' determine the exact circumstances
+whereupon Flymake decides to initiate a check of the buffer.
 
 The commands `flymake-goto-next-error' and
 `flymake-goto-prev-error' can be used to navigate among Flymake
@@ -13462,18 +13505,6 @@ restoration, including those that have been reused or created anew.
 All keyword parameters default to nil.
 
 \(fn FRAMESET &key PREDICATE FILTERS REUSE-FRAMES FORCE-DISPLAY FORCE-ONSCREEN CLEANUP-FRAMES)" nil nil)
-
-(autoload 'frameset--jump-to-register "frameset" "\
-Restore frameset from DATA stored in register.
-Called from `jump-to-register'.  Internal use only.
-
-\(fn DATA)" nil nil)
-
-(autoload 'frameset--print-register "frameset" "\
-Print basic info about frameset stored in DATA.
-Called from `list-registers' and `view-register'.  Internal use only.
-
-\(fn DATA)" nil nil)
 
 (autoload 'frameset-to-register "frameset" "\
 Store the current frameset in register REGISTER.
@@ -15986,7 +16017,7 @@ The value (hs . t) is added to `buffer-invisibility-spec'.
 
 The main commands are: `hs-hide-all', `hs-show-all', `hs-hide-block',
 `hs-show-block', `hs-hide-level' and `hs-toggle-hiding'.  There is also
-`hs-hide-initial-comment-block' and `hs-mouse-toggle-hiding'.
+`hs-hide-initial-comment-block'.
 
 Turning hideshow minor mode off reverts the menu bar and the
 variables to default values and disables the hideshow commands.
@@ -17538,8 +17569,9 @@ Return a regular expression matching image-file filenames." nil nil)
 
 (autoload 'insert-image-file "image-file" "\
 Insert the image file FILE into the current buffer.
-Optional arguments VISIT, BEG, END, and REPLACE are interpreted as for
-the command `insert-file-contents'.
+Optional arguments VISIT, BEG, END, and REPLACE are interpreted
+as for the command `insert-file-contents'.  Return list of
+absolute file name and number of characters inserted.
 
 \(fn FILE &optional VISIT BEG END REPLACE)" nil nil)
 
@@ -18691,15 +18723,17 @@ Major mode for editing JavaScript.
 \(fn)" t nil)
 
 (autoload 'js-jsx-mode "js" "\
-Major mode for editing JSX.
+Major mode for editing JavaScript+JSX.
 
-To customize the indentation for this mode, set the SGML offset
-variables (`sgml-basic-offset', `sgml-attribute-offset' et al.)
-locally, like so:
+Simply makes `js-jsx-syntax' buffer-local and sets it to t.
 
-  (defun set-jsx-indentation ()
-    (setq-local sgml-basic-offset js-indent-level))
-  (add-hook \\='js-jsx-mode-hook #\\='set-jsx-indentation)
+`js-mode' may detect and enable support for JSX automatically if
+it appears to be used in a JavaScript file.  You could also
+customize `js-jsx-regexps' to improve that detection; or, you
+could set `js-jsx-syntax' to t in your init file, or in a
+.dir-locals.el file, or using file variables; or, you could call
+`js-jsx-enable' in `js-mode-hook'.  You may be better served by
+one of the aforementioned options instead of using this mode.
 
 \(fn)" t nil)
  (defalias 'javascript-mode 'js-mode)
@@ -18950,6 +18984,11 @@ Move point to the position clicked with the mouse and call last kbd macro.
 If kbd macro currently being defined end it before activating it.
 
 \(fn EVENT)" t nil)
+
+(autoload 'kmacro-lambda-form "kmacro" "\
+Create lambda form for macro bound to symbol or key.
+
+\(fn MAC &optional COUNTER FORMAT)" nil nil)
 
 (if (fboundp 'register-definition-prefixes) (register-definition-prefixes "kmacro" '("kmacro-")))
 
@@ -19590,6 +19629,8 @@ and then select the region of un-tablified names and use
 \(fn TOP BOTTOM &optional MACRO)" t nil)
  (define-key ctl-x-map "q" 'kbd-macro-query)
 
+(if (fboundp 'register-definition-prefixes) (register-definition-prefixes "macros" '("macros--insert-vector-macro")))
+
 ;;;***
 
 ;;;### (autoloads nil "mail-extr" "mail/mail-extr.el" (0 0 0 0))
@@ -20176,42 +20217,9 @@ recursion depth in the minibuffer prompt.  This is only useful if
 
 (autoload 'message-mode "message" "\
 Major mode for editing mail and news to be sent.
-Like Text Mode but with these additional commands:\\<message-mode-map>
-C-c C-s  `message-send' (send the message)  C-c C-c  `message-send-and-exit'
-C-c C-d  Postpone sending the message       C-c C-k  Kill the message
-C-c C-f  move to a header field (and create it if there isn't):
-	 C-c C-f C-t  move to To	C-c C-f C-s  move to Subject
-	 C-c C-f C-c  move to Cc	C-c C-f C-b  move to Bcc
-	 C-c C-f C-w  move to Fcc	C-c C-f C-r  move to Reply-To
-	 C-c C-f C-u  move to Summary	C-c C-f C-n  move to Newsgroups
-	 C-c C-f C-k  move to Keywords	C-c C-f C-d  move to Distribution
-	 C-c C-f C-o  move to From (\"Originator\")
-	 C-c C-f C-f  move to Followup-To
-	 C-c C-f C-m  move to Mail-Followup-To
-	 C-c C-f C-e  move to Expires
-	 C-c C-f C-i  cycle through Importance values
-	 C-c C-f s    change subject and append \"(was: <Old Subject>)\"
-	 C-c C-f x    crossposting with FollowUp-To header and note in body
-	 C-c C-f t    replace To: header with contents of Cc: or Bcc:
-	 C-c C-f a    Insert X-No-Archive: header and a note in the body
-C-c C-t  `message-insert-to' (add a To header to a news followup)
-C-c C-l  `message-to-list-only' (removes all but list address in to/cc)
-C-c C-n  `message-insert-newsgroups' (add a Newsgroup header to a news reply)
-C-c C-b  `message-goto-body' (move to beginning of message text).
-C-c C-i  `message-goto-signature' (move to the beginning of the signature).
-C-c C-w  `message-insert-signature' (insert `message-signature-file' file).
-C-c C-y  `message-yank-original' (insert current message, if any).
-C-c C-q  `message-fill-yanked-message' (fill what was yanked).
-C-c C-e  `message-elide-region' (elide the text between point and mark).
-C-c C-v  `message-delete-not-region' (remove the text outside the region).
-C-c C-z  `message-kill-to-signature' (kill the text up to the signature).
-C-c C-r  `message-caesar-buffer-body' (rot13 the message body).
-C-c C-a  `mml-attach-file' (attach a file as MIME).
-C-c C-u  `message-insert-or-toggle-importance'  (insert or cycle importance).
-C-c M-n  `message-insert-disposition-notification-to'  (request receipt).
-C-c M-m  `message-mark-inserted-region' (mark region with enclosing tags).
-C-c M-f  `message-mark-insert-file' (insert file marked with enclosing tags).
-M-RET    `message-newline-and-reformat' (break the line and reformat).
+Like `text-mode', but with these additional commands:
+
+\\{message-mode-map}
 
 \(fn)" t nil)
 
@@ -22071,7 +22079,7 @@ This command does not work if you use short group names." t nil)
 ;;;### (autoloads nil "nnheader" "gnus/nnheader.el" (0 0 0 0))
 ;;; Generated autoloads from gnus/nnheader.el
 
-(if (fboundp 'register-definition-prefixes) (register-definition-prefixes "nnheader" '("gnus-" "mail-header-" "make-" "nnheader-" "nntp-")))
+(if (fboundp 'register-definition-prefixes) (register-definition-prefixes "nnheader" '("gnus-" "mail-header-" "make-mail-header" "nnheader-" "nntp-")))
 
 ;;;***
 
@@ -28113,6 +28121,7 @@ CHAR
 `(seq SEXP1 SEXP2 ...)'
 `(sequence SEXP1 SEXP2 ...)'
      matches what SEXP1 matches, followed by what SEXP2 matches, etc.
+     Without arguments, matches the empty string.
 
 `(submatch SEXP1 SEXP2 ...)'
 `(group SEXP1 SEXP2 ...)'
@@ -28128,7 +28137,7 @@ CHAR
 `(| SEXP1 SEXP2 ...)'
      matches anything that matches SEXP1 or SEXP2, etc.  If all
      args are strings, use `regexp-opt' to optimize the resulting
-     regular expression.
+     regular expression.  Without arguments, never matches anything.
 
 `(minimal-match SEXP)'
      produce a non-greedy regexp for SEXP.  Normally, regexps matching
@@ -29263,6 +29272,7 @@ The default value matches citations like `foo-bar>' plus whitespace.")
 
 (defvar mail-signature t "\
 Text inserted at end of mail buffer when a message is initialized.
+If nil, no signature is inserted.
 If t, it means to insert the contents of the file `mail-signature-file'.
 If a string, that string is inserted.
  (To make a proper signature, the string should begin with \\n\\n-- \\n,
@@ -34358,9 +34368,11 @@ STATUS is a plist representing what happened during the request,
 with most recent events first, or an empty list if no events have
 occurred.  Each pair is one of:
 
-\(:redirect REDIRECTED-TO) - the request was redirected to this URL
-\(:error (ERROR-SYMBOL . DATA)) - an error occurred.  The error can be
-signaled with (signal ERROR-SYMBOL DATA).
+\(:redirect REDIRECTED-TO) - the request was redirected to this URL.
+
+\(:error (error type . DATA)) - an error occurred.  TYPE is a
+symbol that says something about where the error occurred, and
+DATA is a list (possibly nil) that describes the error further.
 
 Return the buffer URL will load into, or nil if the process has
 already completed (i.e. URL was a mailto URL or similar; in this case
@@ -34620,23 +34632,19 @@ if ARG is `toggle'; disable the mode otherwise.
 
 (autoload 'url-file-handler "url-handlers" "\
 Function called from the `file-name-handler-alist' routines.
-OPERATION is what needs to be done (`file-exists-p', etc).  ARGS are
-the arguments that would have been passed to OPERATION.
+OPERATION is what needs to be done (`file-exists-p', etc.).
+ARGS are the arguments that would have been passed to OPERATION.
 
 \(fn OPERATION &rest ARGS)" nil nil)
 
 (autoload 'url-copy-file "url-handlers" "\
-Copy URL to NEWNAME.  Both args must be strings.
-Signal a `file-already-exists' error if file NEWNAME already exists,
-unless a third argument OK-IF-ALREADY-EXISTS is supplied and non-nil.
-A number as third arg means request confirmation if NEWNAME already exists.
-This is what happens in interactive use with M-x.
-Fourth arg KEEP-TIME non-nil means give the new file the same
-last-modified time as the old one.  (This works on only some systems.)
-Args PRESERVE-UID-GID and PRESERVE-PERMISSIONS are ignored.
-A prefix arg makes KEEP-TIME non-nil.
+Copy URL to NEWNAME.  Both arguments must be strings.
+Signal a `file-already-exists' error if file NEWNAME already
+exists, unless a third argument OK-IF-ALREADY-EXISTS is supplied
+and non-nil.  An integer as third argument means request
+confirmation if NEWNAME already exists.
 
-\(fn URL NEWNAME &optional OK-IF-ALREADY-EXISTS KEEP-TIME PRESERVE-UID-GID PRESERVE-PERMISSIONS)" nil nil)
+\(fn URL NEWNAME &optional OK-IF-ALREADY-EXISTS &rest IGNORED)" nil nil)
 
 (autoload 'url-file-local-copy "url-handlers" "\
 Copy URL into a temporary file on this machine.
@@ -35307,7 +35315,12 @@ first backend that could register the file is used.
 \(fn &optional VC-FILESET COMMENT)" t nil)
 
 (autoload 'vc-version-diff "vc" "\
-Report diffs between REV1 and REV2 revisions of the fileset.
+Report diffs between revisions REV1 and REV2 in the repository history.
+This compares two revisions of the current fileset.
+If REV1 is nil, it defaults to the current revision, i.e. revision
+of the last commit.
+If REV2 is nil, it defaults to the work tree, i.e. the current
+state of each file in the fileset.
 
 \(fn FILES REV1 REV2)" t nil)
 
@@ -35334,8 +35347,14 @@ The merge base is a common ancestor between REV1 and REV2 revisions.
 \(fn FILES REV1 REV2)" t nil)
 
 (autoload 'vc-version-ediff "vc" "\
-Show differences between revisions of the fileset in the
-repository history using ediff.
+Show differences between REV1 and REV2 of FILES using ediff.
+This compares two revisions of the files in FILES.  Currently,
+only a single file's revisions can be compared, i.e. FILES can
+specify only one file name.
+If REV1 is nil, it defaults to the current revision, i.e. revision
+of the last commit.
+If REV2 is nil, it defaults to the work tree, i.e. the current
+state of each file in FILES.
 
 \(fn FILES REV1 REV2)" t nil)
 
@@ -38171,43 +38190,45 @@ Zone out, completely." t nil)
 ;;;;;;  "international/uni-digit.el" "international/uni-lowercase.el"
 ;;;;;;  "international/uni-mirrored.el" "international/uni-name.el"
 ;;;;;;  "international/uni-numeric.el" "international/uni-old-name.el"
-;;;;;;  "international/uni-titlecase.el" "international/uni-uppercase.el"
-;;;;;;  "isearch.el" "jit-lock.el" "jka-cmpr-hook.el" "language/burmese.el"
-;;;;;;  "language/cham.el" "language/chinese.el" "language/cyrillic.el"
-;;;;;;  "language/czech.el" "language/english.el" "language/ethiopic.el"
-;;;;;;  "language/european.el" "language/georgian.el" "language/greek.el"
-;;;;;;  "language/hebrew.el" "language/indian.el" "language/japanese.el"
-;;;;;;  "language/khmer.el" "language/korean.el" "language/lao.el"
-;;;;;;  "language/misc-lang.el" "language/romanian.el" "language/sinhala.el"
-;;;;;;  "language/slovak.el" "language/tai-viet.el" "language/thai.el"
-;;;;;;  "language/tibetan.el" "language/utf-8-lang.el" "language/vietnamese.el"
-;;;;;;  "ldefs-boot.el" "leim/ja-dic/ja-dic.el" "leim/leim-list.el"
-;;;;;;  "leim/quail/4Corner.el" "leim/quail/ARRAY30.el" "leim/quail/CCDOSPY.el"
-;;;;;;  "leim/quail/CTLau-b5.el" "leim/quail/CTLau.el" "leim/quail/ECDICT.el"
-;;;;;;  "leim/quail/ETZY.el" "leim/quail/PY-b5.el" "leim/quail/PY.el"
-;;;;;;  "leim/quail/Punct-b5.el" "leim/quail/Punct.el" "leim/quail/QJ-b5.el"
-;;;;;;  "leim/quail/QJ.el" "leim/quail/SW.el" "leim/quail/TONEPY.el"
-;;;;;;  "leim/quail/ZIRANMA.el" "leim/quail/ZOZY.el" "leim/quail/arabic.el"
-;;;;;;  "leim/quail/croatian.el" "leim/quail/cyril-jis.el" "leim/quail/cyrillic.el"
-;;;;;;  "leim/quail/czech.el" "leim/quail/georgian.el" "leim/quail/greek.el"
-;;;;;;  "leim/quail/hanja-jis.el" "leim/quail/hanja.el" "leim/quail/hanja3.el"
-;;;;;;  "leim/quail/hebrew.el" "leim/quail/ipa-praat.el" "leim/quail/latin-alt.el"
-;;;;;;  "leim/quail/latin-ltx.el" "leim/quail/latin-post.el" "leim/quail/latin-pre.el"
-;;;;;;  "leim/quail/persian.el" "leim/quail/programmer-dvorak.el"
-;;;;;;  "leim/quail/py-punct.el" "leim/quail/pypunct-b5.el" "leim/quail/quick-b5.el"
-;;;;;;  "leim/quail/quick-cns.el" "leim/quail/rfc1345.el" "leim/quail/sami.el"
-;;;;;;  "leim/quail/sgml-input.el" "leim/quail/slovak.el" "leim/quail/symbol-ksc.el"
-;;;;;;  "leim/quail/tamil-dvorak.el" "leim/quail/tsang-b5.el" "leim/quail/tsang-cns.el"
-;;;;;;  "leim/quail/vntelex.el" "leim/quail/vnvni.el" "leim/quail/welsh.el"
-;;;;;;  "loadup.el" "mail/blessmail.el" "mail/rmailedit.el" "mail/rmailkwd.el"
-;;;;;;  "mail/rmailmm.el" "mail/rmailmsc.el" "mail/rmailsort.el"
-;;;;;;  "mail/rmailsum.el" "mail/undigest.el" "menu-bar.el" "mh-e/mh-gnus.el"
-;;;;;;  "mh-e/mh-loaddefs.el" "minibuffer.el" "mouse.el" "net/tramp-loaddefs.el"
-;;;;;;  "newcomment.el" "obarray.el" "org/ob-core.el" "org/ob-keys.el"
-;;;;;;  "org/ob-lob.el" "org/ob-matlab.el" "org/ob-tangle.el" "org/ob.el"
-;;;;;;  "org/org-archive.el" "org/org-attach.el" "org/org-bbdb.el"
-;;;;;;  "org/org-clock.el" "org/org-datetree.el" "org/org-element.el"
-;;;;;;  "org/org-feed.el" "org/org-footnote.el" "org/org-id.el" "org/org-indent.el"
+;;;;;;  "international/uni-special-lowercase.el" "international/uni-special-titlecase.el"
+;;;;;;  "international/uni-special-uppercase.el" "international/uni-titlecase.el"
+;;;;;;  "international/uni-uppercase.el" "isearch.el" "jit-lock.el"
+;;;;;;  "jka-cmpr-hook.el" "language/burmese.el" "language/cham.el"
+;;;;;;  "language/chinese.el" "language/cyrillic.el" "language/czech.el"
+;;;;;;  "language/english.el" "language/ethiopic.el" "language/european.el"
+;;;;;;  "language/georgian.el" "language/greek.el" "language/hebrew.el"
+;;;;;;  "language/indian.el" "language/japanese.el" "language/khmer.el"
+;;;;;;  "language/korean.el" "language/lao.el" "language/misc-lang.el"
+;;;;;;  "language/romanian.el" "language/sinhala.el" "language/slovak.el"
+;;;;;;  "language/tai-viet.el" "language/thai.el" "language/tibetan.el"
+;;;;;;  "language/utf-8-lang.el" "language/vietnamese.el" "ldefs-boot.el"
+;;;;;;  "leim/ja-dic/ja-dic.el" "leim/leim-list.el" "leim/quail/4Corner.el"
+;;;;;;  "leim/quail/ARRAY30.el" "leim/quail/CCDOSPY.el" "leim/quail/CTLau-b5.el"
+;;;;;;  "leim/quail/CTLau.el" "leim/quail/ECDICT.el" "leim/quail/ETZY.el"
+;;;;;;  "leim/quail/PY-b5.el" "leim/quail/PY.el" "leim/quail/Punct-b5.el"
+;;;;;;  "leim/quail/Punct.el" "leim/quail/QJ-b5.el" "leim/quail/QJ.el"
+;;;;;;  "leim/quail/SW.el" "leim/quail/TONEPY.el" "leim/quail/ZIRANMA.el"
+;;;;;;  "leim/quail/ZOZY.el" "leim/quail/arabic.el" "leim/quail/croatian.el"
+;;;;;;  "leim/quail/cyril-jis.el" "leim/quail/cyrillic.el" "leim/quail/czech.el"
+;;;;;;  "leim/quail/georgian.el" "leim/quail/greek.el" "leim/quail/hanja-jis.el"
+;;;;;;  "leim/quail/hanja.el" "leim/quail/hanja3.el" "leim/quail/hebrew.el"
+;;;;;;  "leim/quail/ipa-praat.el" "leim/quail/latin-alt.el" "leim/quail/latin-ltx.el"
+;;;;;;  "leim/quail/latin-post.el" "leim/quail/latin-pre.el" "leim/quail/persian.el"
+;;;;;;  "leim/quail/programmer-dvorak.el" "leim/quail/py-punct.el"
+;;;;;;  "leim/quail/pypunct-b5.el" "leim/quail/quick-b5.el" "leim/quail/quick-cns.el"
+;;;;;;  "leim/quail/rfc1345.el" "leim/quail/sami.el" "leim/quail/sgml-input.el"
+;;;;;;  "leim/quail/slovak.el" "leim/quail/symbol-ksc.el" "leim/quail/tamil-dvorak.el"
+;;;;;;  "leim/quail/tsang-b5.el" "leim/quail/tsang-cns.el" "leim/quail/vntelex.el"
+;;;;;;  "leim/quail/vnvni.el" "leim/quail/welsh.el" "loadup.el" "mail/blessmail.el"
+;;;;;;  "mail/rmailedit.el" "mail/rmailkwd.el" "mail/rmailmm.el"
+;;;;;;  "mail/rmailmsc.el" "mail/rmailsort.el" "mail/rmailsum.el"
+;;;;;;  "mail/undigest.el" "menu-bar.el" "mh-e/mh-gnus.el" "mh-e/mh-loaddefs.el"
+;;;;;;  "minibuffer.el" "mouse.el" "net/tramp-loaddefs.el" "newcomment.el"
+;;;;;;  "obarray.el" "org/ob-core.el" "org/ob-keys.el" "org/ob-lob.el"
+;;;;;;  "org/ob-matlab.el" "org/ob-tangle.el" "org/ob.el" "org/org-archive.el"
+;;;;;;  "org/org-attach.el" "org/org-bbdb.el" "org/org-clock.el"
+;;;;;;  "org/org-datetree.el" "org/org-element.el" "org/org-feed.el"
+;;;;;;  "org/org-footnote.el" "org/org-id.el" "org/org-indent.el"
 ;;;;;;  "org/org-install.el" "org/org-irc.el" "org/org-mobile.el"
 ;;;;;;  "org/org-plot.el" "org/org-table.el" "org/org-timer.el" "org/ox-ascii.el"
 ;;;;;;  "org/ox-beamer.el" "org/ox-html.el" "org/ox-icalendar.el"
